@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Prakiraan Cuaca BMKG</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f8fafc; }
+    h1 { color: #0055aa; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #e2e8f0;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <h1>Prakiraan Cuaca BMKG</h1>
+  <p id="lokasi">Memuat data...</p>
+  <table id="tabel">
+    <thead>
+      <tr>
+        <th>Waktu</th>
+        <th>Cuaca</th>
+        <th>Suhu (°C)</th>
+        <th>Kelembapan (%)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadBMKG() {
+      // Ganti kode adm4 sesuai wilayah (contoh: 33.01.01.2001 = Desa Slerok, Tegal)
+      const url = "https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=33.01.01.2001"; 
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        const data = await response.json();
+        console.log(data);
+
+        // Tampilkan lokasi
+        document.getElementById("lokasi").textContent = 
+          "Lokasi: " + data.lokasi.kecamatan + ", " + data.lokasi.kabupaten + ", " + data.lokasi.provinsi;
+
+        const tbody = document.querySelector("#tabel tbody");
+        tbody.innerHTML = "";
+
+        data.data.forEach(item => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${new Date(item.jam).toLocaleString("id-ID")}</td>
+            <td>${item.cuaca}</td>
+            <td>${item.t}°C</td>
+            <td>${item.hu}%</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        document.getElementById("lokasi").textContent = "Gagal ambil data: " + err;
+      }
+    }
+
+    loadBMKG();
+  </script>
+</body>
+</html>
