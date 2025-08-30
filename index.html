@@ -36,46 +36,53 @@
   </table>
 
   <script>
-    async function loadBMKG() {
-      const adm4 = document.getElementById("adm4").value.trim();
-      if (!adm4) {
-        alert("Isi dulu kode ADM4!");
+    async function loadForecast(adm4) {
+    const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
+
+    const data = json.data?.[0]?.cuaca;
+    if (!data) {
+        document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
         return;
-      }
-
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-
-        // tampilkan json mentah
-        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
-
-        // isi tabel
-        const tbody = document.querySelector("#forecastTable tbody");
-        tbody.innerHTML = "";
-
-        if (data.data && data.data[0] && data.data[0].cuaca) {
-          data.data[0].cuaca.forEach(item => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-              <td>${item.local_datetime}</td>
-              <td>${item.t}</td>
-              <td>${item.hu}</td>
-              <td>${item.weather_desc}</td>
-            `;
-            tbody.appendChild(row);
-          });
-        } else {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="4">Data tidak tersedia</td>`;
-          tbody.appendChild(row);
-        }
-
-      } catch (err) {
-        document.getElementById("output").textContent = "Error: " + err;
-      }
     }
+
+    // Flatten array (gabung semua list prakiraan jadi satu array)
+    const flatData = data.flat();
+
+    // bikin tabel
+    let html = `
+      <table border="1" cellspacing="0" cellpadding="5">
+        <thead>
+          <tr>
+            <th>Waktu Lokal</th>
+            <th>Suhu (°C)</th>
+            <th>Kelembapan (%)</th>
+            <th>Cuaca</th>
+            <th>Gambar</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    flatData.forEach(item => {
+        html += `
+          <tr>
+            <td>${item.local_datetime}</td>
+            <td>${item.t}</td>
+            <td>${item.hu}</td>
+            <td>${item.weather_desc}</td>
+            <td><img src="${item.image}" width="40"></td>
+          </tr>
+        `;
+    });
+
+    html += "</tbody></table>";
+    document.getElementById("forecastTable").innerHTML = html;
+}
+
   </script>
 </body>
 </html>
