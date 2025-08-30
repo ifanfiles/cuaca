@@ -5,164 +5,116 @@
   <title>Prakiraan Cuaca BMKG</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f9f9f9;
-    }
-    h2 {
-      margin-bottom: 10px;
-    }
-    .input-box {
-      margin-bottom: 15px;
-    }
-    .container {
-      display: grid;
-      grid-template-columns: 1fr 2fr; /* tabel kecil, chart lebar */
-      gap: 20px;
-      align-items: start;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    th, td {
-      padding: 8px 12px;
-      border-bottom: 1px solid #ddd;
-      text-align: center;
-    }
-    th {
-      background: #007bff;
-      color: white;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    #chartContainer {
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-bottom: 5px; }
+    .container { display: flex; gap: 20px; align-items: flex-start; }
+    table { border-collapse: collapse; width: 400px; }
+    th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
+    th { background: #f0f0f0; }
+    .chart-container { flex: 1; }
+    .location { margin-bottom: 15px; }
+    input, button { padding: 6px; font-size: 14px; margin-top: 5px; }
   </style>
 </head>
 <body>
-
   <h2>Prakiraan Cuaca BMKG</h2>
 
-  <!-- Input ADM4 -->
-  <div class="input-box">
-    <label for="adm4">Kode ADM4: </label>
-    <input type="text" id="adm4" value="34.02.07.2001">
+  <!-- Input kode ADM4 -->
+  <div>
+    <label>Masukkan kode ADM4: </label>
+    <input type="text" id="admInput" value="34.02.07.2001">
     <button onclick="loadWeather()">Tampilkan</button>
   </div>
 
   <!-- Info lokasi -->
-  <div id="lokasiInfo"></div>
+  <div class="location" id="locationInfo"></div>
 
+  <!-- Container tabel + chart -->
   <div class="container">
-    <!-- Tabel di kiri -->
     <table id="weatherTable">
       <thead>
         <tr>
           <th>Jam</th>
           <th>Cuaca</th>
-          <th>Suhu (°C)</th>
-          <th>Kelembapan (%)</th>
+          <th>Suhu</th>
+          <th>Kelembapan</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
 
-    <!-- Chart di kanan -->
-    <div id="chartContainer">
+    <div class="chart-container">
       <canvas id="weatherChart"></canvas>
     </div>
   </div>
 
   <script>
-    let weatherChart; // simpan chart agar bisa dihapus kalau reload
+    let chart; // simpan chart global
 
     async function loadWeather() {
-      const kodeADM4 = document.getElementById("adm4").value;
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${kodeADM4}`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const admCode = document.getElementById("admInput").value;
+      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${admCode}`;
+      
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
 
-      // tampilkan lokasi
-      const lokasi = data.lokasi;
-      document.getElementById("lokasiInfo").innerHTML = `
-        <strong>Provinsi:</strong> ${lokasi.provinsi} | 
-        <strong>Kab/Kota:</strong> ${lokasi.kotkab} | 
-        <strong>Kecamatan:</strong> ${lokasi.kecamatan} | 
-        <strong>Kelurahan:</strong> ${lokasi.desa}
-      `;
-
-      // isi tabel
-      const tbody = document.querySelector("#weatherTable tbody");
-      tbody.innerHTML = "";
-      const times = [];
-      const temps = [];
-      const hums = [];
-      data.data[0].cuaca.forEach(item => {
-        const jam = new Date(item.local_datetime).toLocaleTimeString("id-ID", {hour: "2-digit", minute:"2-digit"});
-        tbody.innerHTML += `
-          <tr>
-            <td>${jam}</td>
-            <td>${item.weather_desc}</td>
-            <td>${item.t}°C</td>
-            <td>${item.hu}%</td>
-          </tr>
+        // tampilkan info lokasi
+        const loc = data.lokasi;
+        document.getElementById("locationInfo").innerHTML = `
+          <b>Provinsi:</b> ${loc.provinsi} <br>
+          <b>Kab/Kota:</b> ${loc.kotkab} <br>
+          <b>Kecamatan:</b> ${loc.kecamatan} <br>
+          <b>Desa:</b> ${loc.desa}
         `;
-        times.push(jam);
-        temps.push(item.t);
-        hums.push(item.hu);
-      });
 
-      // hapus chart lama kalau ada
-      if (weatherChart) {
-        weatherChart.destroy();
-      }
+        // ambil semua data cuaca
+        const cuacaData = data.data.flatMap(d => d.cuaca);
 
-      // chart
-      const ctx = document.getElementById("weatherChart").getContext("2d");
-      weatherChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: times,
-          datasets: [
-            {
-              label: "Suhu (°C)",
-              data: temps,
-              borderColor: "red",
-              backgroundColor: "rgba(255,0,0,0.2)",
-              tension: 0.3
-            },
-            {
-              label: "Kelembapan (%)",
-              data: hums,
-              borderColor: "blue",
-              backgroundColor: "rgba(0,0,255,0.2)",
-              tension: 0.3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: "bottom" }
+        // isi tabel
+        const tbody = document.querySelector("#weatherTable tbody");
+        tbody.innerHTML = "";
+        const times = [], temps = [], hums = [];
+
+        cuacaData.forEach(item => {
+          const jam = new Date(item.local_datetime).toLocaleTimeString("id-ID", {
+            hour: "2-digit", minute:"2-digit"
+          });
+          tbody.innerHTML += `
+            <tr>
+              <td>${jam}</td>
+              <td>${item.weather_desc}</td>
+              <td>${item.t}°C</td>
+              <td>${item.hu}%</td>
+            </tr>
+          `;
+          times.push(jam);
+          temps.push(item.t);
+          hums.push(item.hu);
+        });
+
+        // update chart
+        const ctx = document.getElementById("weatherChart").getContext("2d");
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: times,
+            datasets: [
+              { label: "Suhu (°C)", data: temps, borderColor: "red", fill: false },
+              { label: "Kelembapan (%)", data: hums, borderColor: "blue", fill: false }
+            ]
           }
-        }
-      });
+        });
+
+      } catch (err) {
+        console.error("Gagal ambil data:", err);
+        alert("Data tidak tersedia untuk kode ADM4 ini.");
+      }
     }
 
-    // auto load pertama kali
+    // otomatis load pertama kali
     loadWeather();
   </script>
-
 </body>
 </html>
