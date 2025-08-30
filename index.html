@@ -9,7 +9,29 @@
     table { border-collapse: collapse; margin-top: 15px; width: 100%; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
     th { background: #f0f0f0; }
-    #chartContainer { margin-top: 30px; }
+    /* Layout side by side */
+    .content-container { 
+        display: flex; 
+        gap: 20px; 
+        margin-top: 30px; 
+        flex-wrap: wrap;
+    }
+    
+    .table-section { 
+        flex: 1; 
+        min-width: 400px; 
+    }
+    
+    .chart-section { 
+        flex: 1; 
+        min-width: 400px; 
+    }
+    
+    .chart-section canvas { 
+        width: 100%; 
+        height: 120px; 
+        margin-bottom: 20px; 
+    }
     .input-box { margin-bottom: 15px; }
     #meta { margin: 15px 0; padding: 10px; background: #eef; border-radius: 6px; }
     #titleArea { margin-top:20px; font-size:18px; font-weight:bold; }
@@ -28,11 +50,18 @@
   <div id="meta"></div>
   <div id="titleArea"></div>
 
-  <div id="forecastTable"></div>
-
-  <div id="chartContainer">
-    <canvas id="tempChart" height="120"></canvas>
-    <canvas id="humChart" height="120"></canvas>
+<!-- Container untuk layout side by side -->
+  <div class="content-container">
+    <!-- Bagian kiri: Tabel -->
+    <div class="table-section">
+      <div id="forecastTable"></div>
+    </div>
+    
+    <!-- Bagian kanan: Chart -->
+    <div class="chart-section">
+      <canvas id="tempChart" height="120"></canvas>
+      <canvas id="humChart" height="120"></canvas>
+    </div>
   </div>
 
   <pre id="rawData" style="background:#f9f9f9; padding:10px; margin-top:20px; max-height:300px; overflow:auto;"></pre>
