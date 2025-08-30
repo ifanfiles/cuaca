@@ -11,6 +11,7 @@
     th { background: #f0f0f0; }
     #chartContainer { margin-top: 30px; }
     .input-box { margin-bottom: 15px; }
+    #meta { margin: 15px 0; padding: 10px; background: #eef; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -21,6 +22,9 @@
     <input type="text" id="adm4" value="31.71.01.1001" size="20">
     <button onclick="loadForecast()">Load Data</button>
   </div>
+
+  <!-- metadata wilayah -->
+  <div id="meta"></div>
 
   <div id="forecastTable"></div>
 
@@ -42,7 +46,21 @@
 
         document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
 
-        const data = json.data?.[0]?.cuaca;
+        const wilayah = json.data?.[0];
+        const data = wilayah?.cuaca;
+
+        // ===== Metadata Wilayah =====
+        if (wilayah) {
+          document.getElementById("meta").innerHTML = `
+            <b>Provinsi:</b> ${wilayah.provinsi || "-"} <br>
+            <b>Kabupaten/Kota:</b> ${wilayah.kabupaten || "-"} <br>
+            <b>Kecamatan:</b> ${wilayah.kecamatan || "-"} <br>
+            <b>Kelurahan:</b> ${wilayah.lokasi || "-"}
+          `;
+        } else {
+          document.getElementById("meta").innerHTML = "<p>Data wilayah tidak tersedia.</p>";
+        }
+
         if (!data) {
           document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
           return;
