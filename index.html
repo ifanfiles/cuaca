@@ -9,10 +9,14 @@
     th, td { border: 1px solid #999; padding: 8px; text-align: center; }
     th { background: #eee; }
     pre { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: scroll; }
+    label { font-weight: bold; }
   </style>
 </head>
 <body>
   <h2>Data dari API BMKG</h2>
+
+  <label for="adm4">Masukkan Kode ADM4:</label>
+  <input type="text" id="adm4" value="31.71.01.1001" size="20">
   <button onclick="loadBMKG()">Ambil Data</button>
 
   <h3>JSON Mentah:</h3>
@@ -33,7 +37,13 @@
 
   <script>
     async function loadBMKG() {
-      const url = "https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=31.71.01.1001"; 
+      const adm4 = document.getElementById("adm4").value.trim();
+      if (!adm4) {
+        alert("Isi dulu kode ADM4!");
+        return;
+      }
+
+      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
       try {
         const res = await fetch(url);
         const data = await res.json();
@@ -41,7 +51,7 @@
         // tampilkan json mentah
         document.getElementById("output").textContent = JSON.stringify(data, null, 2);
 
-        // ambil tabel
+        // isi tabel
         const tbody = document.querySelector("#forecastTable tbody");
         tbody.innerHTML = "";
 
@@ -50,12 +60,16 @@
             const row = document.createElement("tr");
             row.innerHTML = `
               <td>${item.local_datetime}</td>
-              <td>${item.t} </td>
-              <td>${item.hu} </td>
+              <td>${item.t}</td>
+              <td>${item.hu}</td>
               <td>${item.weather_desc}</td>
             `;
             tbody.appendChild(row);
           });
+        } else {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td colspan="4">Data tidak tersedia</td>`;
+          tbody.appendChild(row);
         }
 
       } catch (err) {
