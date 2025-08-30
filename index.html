@@ -1,81 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Cek API BMKG</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #999; padding: 8px; text-align: center; }
-    th { background: #eee; }
-    pre { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: scroll; }
-    label { font-weight: bold; }
-  </style>
-</head>
-<body>
-  <h2>Data dari API BMKG</h2>
+<h3>Cek Data Prakiraan BMKG</h3>
+<input type="text" id="kodeAdm4" placeholder="Masukkan kode adm4">
+<button id="btnLoad">Tampilkan</button>
 
-  <label for="adm4">Masukkan Kode ADM4:</label>
-  <input type="text" id="adm4" value="31.71.01.1001" size="20">
-  <button onclick="loadBMKG()">Ambil Data</button>
+<h4>Data Mentah JSON</h4>
+<pre id="rawData"></pre>
 
-  <h3>JSON Mentah:</h3>
-  <pre id="output">Klik tombol di atas untuk ambil data...</pre>
+<h4>Data Tabel</h4>
+<div id="forecastTable"></div>
 
-  <h3>Prakiraan (Tabel Ringkas):</h3>
-  <table id="forecastTable">
-    <thead>
-      <tr>
-        <th>Waktu</th>
-        <th>Suhu (°C)</th>
-        <th>Kelembapan (%)</th>
-        <th>Cuaca</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <script>
-    async function loadBMKG() {
-      const adm4 = document.getElementById("adm4").value.trim();
-      if (!adm4) {
-        alert("Isi dulu kode ADM4!");
-        return;
-      }
-
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-
-        // tampilkan json mentah
-        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
-
-        // isi tabel
-        const tbody = document.querySelector("#forecastTable tbody");
-        tbody.innerHTML = "";
-
-        if (data.data && data.data[0] && data.data[0].cuaca) {
-          data.data[0].cuaca.forEach(item => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-              <td>${item.local_datetime}</td>
-              <td>${item.t}</td>
-              <td>${item.hu}</td>
-              <td>${item.weather_desc}</td>
-            `;
-            tbody.appendChild(row);
-          });
-        } else {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="4">Data tidak tersedia</td>`;
-          tbody.appendChild(row);
-        }
-
-      } catch (err) {
-        document.getElementById("output").textContent = "Error: " + err;
-      }
-    }
-  </script>
-</body>
-</html>
+<script src="script.js"></script>
