@@ -6,6 +6,7 @@ async function loadForecast(adm4) {
     // tampilkan JSON mentah di <pre>
     document.getElementById("rawData").textContent = JSON.stringify(data, null, 2);
 
+    // cek apakah ada field 'cuaca'
     if (!data.cuaca || data.cuaca.length === 0) {
         document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
         return;
@@ -16,13 +17,17 @@ async function loadForecast(adm4) {
 
     // buat header tabel
     let html = "<table border='1' cellspacing='0' cellpadding='5'><thead><tr>";
-    keys.forEach(k => html += `<th>${k}</th>`);
+    keys.forEach(k => {
+        html += `<th>${k}</th>`;
+    });
     html += "</tr></thead><tbody>";
 
-    // isi data
+    // isi data tabel
     data.cuaca.forEach(item => {
         html += "<tr>";
-        keys.forEach(k => html += `<td>${item[k]}</td>`);
+        keys.forEach(k => {
+            html += `<td>${item[k]}</td>`;
+        });
         html += "</tr>";
     });
 
@@ -30,8 +35,10 @@ async function loadForecast(adm4) {
     document.getElementById("forecastTable").innerHTML = html;
 }
 
-// event handler tombol
+// contoh: input manual kode adm4
 document.getElementById("btnLoad").addEventListener("click", () => {
-    const adm4 = document.getElementById("wilayah").value;
-    if (adm4) loadForecast(adm4);
+    const adm4 = document.getElementById("kodeAdm4").value.trim();
+    if (adm4) {
+        loadForecast(adm4);
+    }
 });
