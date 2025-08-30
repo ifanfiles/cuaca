@@ -1,120 +1,92 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>Prakiraan Cuaca BMKG</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h2 { margin-bottom: 5px; }
-    .container { display: flex; gap: 20px; align-items: flex-start; }
-    table { border-collapse: collapse; width: 400px; }
-    th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
-    th { background: #f0f0f0; }
-    .chart-container { flex: 1; }
-    .location { margin-bottom: 15px; }
-    input, button { padding: 6px; font-size: 14px; margin-top: 5px; }
-  </style>
-</head>
-<body>
-  <h2>Prakiraan Cuaca BMKG</h2>
+<script>
+  async function loadForecast() {
+    const adm4 = document.getElementById("adm4").value.trim();
+    const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
 
-  <!-- Input kode ADM4 -->
-  <div>
-    <label>Masukkan kode ADM4: </label>
-    <input type="text" id="admInput" value="34.02.07.2001">
-    <button onclick="loadWeather()">Tampilkan</button>
-  </div>
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
 
-  <!-- Info lokasi -->
-  <div class="location" id="locationInfo"></div>
+      // tampilkan JSON mentah buat debug
+      document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
 
-  <!-- Container tabel + chart -->
-  <div class="container">
-    <table id="weatherTable">
-      <thead>
-        <tr>
-          <th>Jam</th>
-          <th>Cuaca</th>
-          <th>Suhu</th>
-          <th>Kelembapan</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+      const wilayah = json.data?.[0];  // ambil data pertama
+      const lokasi = wilayah?.lokasi; // metadata wilayah
+      const data = wilayah?.cuaca;
 
-    <div class="chart-container">
-      <canvas id="weatherChart"></canvas>
-    </div>
-  </div>
+      console.log("Lokasi:", lokasi); // DEBUG ke console
 
-  <script>
-    let chart; // simpan chart global
+      // ===== Metadata Wilayah =====
+      if (lokasi) {
+        const prov = lokasi.provinsi || "-";
+        const kotkab = lokasi.kotkab || "-";
+        const kec = lokasi.kecamatan || "-";
+        const desa = lokasi.desa || "-";
 
-    async function loadWeather() {
-      const admCode = document.getElementById("admInput").value;
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${admCode}`;
-      
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-
-        // tampilkan info lokasi
-        const loc = data.lokasi;
-        document.getElementById("locationInfo").innerHTML = `
-          <b>Provinsi:</b> ${loc.provinsi} <br>
-          <b>Kab/Kota:</b> ${loc.kotkab} <br>
-          <b>Kecamatan:</b> ${loc.kecamatan} <br>
-          <b>Desa:</b> ${loc.desa}
+        document.getElementById("meta").innerHTML = `
+          <b>Provinsi:</b> ${prov} <br>
+          <b>Kabupaten/Kota:</b> ${kotkab} <br>
+          <b>Kecamatan:</b> ${kec} <br>
+          <b>Desa/Kelurahan:</b> ${desa}
         `;
 
-        // ambil semua data cuaca
-        const cuacaData = data.data.flatMap(d => d.cuaca);
-
-        // isi tabel
-        const tbody = document.querySelector("#weatherTable tbody");
-        tbody.innerHTML = "";
-        const times = [], temps = [], hums = [];
-
-        cuacaData.forEach(item => {
-          const jam = new Date(item.local_datetime).toLocaleTimeString("id-ID", {
-            hour: "2-digit", minute:"2-digit"
-          });
-          tbody.innerHTML += `
-            <tr>
-              <td>${jam}</td>
-              <td>${item.weather_desc}</td>
-              <td>${item.t}°C</td>
-              <td>${item.hu}%</td>
-            </tr>
-          `;
-          times.push(jam);
-          temps.push(item.t);
-          hums.push(item.hu);
-        });
-
-        // update chart
-        const ctx = document.getElementById("weatherChart").getContext("2d");
-        if (chart) chart.destroy();
-        chart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels: times,
-            datasets: [
-              { label: "Suhu (°C)", data: temps, borderColor: "red", fill: false },
-              { label: "Kelembapan (%)", data: hums, borderColor: "blue", fill: false }
-            ]
-          }
-        });
-
-      } catch (err) {
-        console.error("Gagal ambil data:", err);
-        alert("Data tidak tersedia untuk kode ADM4 ini.");
+        // judul otomatis
+        document.getElementById("titleArea").innerHTML = 
+          `Prakiraan Cuaca untuk ${desa}, ${kec}, ${kotkab}`;
+      } else {
+        document.getElementById("meta").innerHTML = "<p>Data wilayah tidak tersedia.</p>";
+        document.getElementById("titleArea").innerHTML = "";
       }
-    }
 
-    // otomatis load pertama kali
-    loadWeather();
-  </script>
-</body>
-</html>
+      if (!data) {
+        document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
+        return;
+      }
+
+      // Flatten array cuaca
+      const flatData = data.flat();
+
+      // ===== Tabel Cuaca =====
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu Lokal</th>
+              <th>Suhu (°C)</th>
+              <th>Kelembapan (%)</th>
+              <th>Cuaca</th>
+              <th>Icon</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      flatData.forEach(item => {
+        html += `
+          <tr>
+            <td>${item.local_datetime}</td>
+            <td>${item.t}</td>
+            <td>${item.hu}</td>
+            <td>${item.weather_desc}</td>
+            <td><img src="${item.image}" width="40"></td>
+          </tr>
+        `;
+      });
+
+      html += "</tbody></table>";
+      document.getElementById("forecastTable").innerHTML = html;
+
+      // ===== Grafik Suhu & Kelembapan =====
+      const labels = flatData.map(d => d.local_datetime);
+      const suhu = flatData.map(d => d.t);
+      const hum = flatData.map(d => d.hu);
+
+      renderChart("tempChart", "Suhu (°C)", labels, suhu, "rgba(255,99,132,0.7)");
+      renderChart("humChart", "Kelembapan (%)", labels, hum, "rgba(54,162,235,0.7)");
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById("forecastTable").innerHTML = "<p>Error mengambil data.</p>";
+    }
+  }
+</script>
