@@ -5,159 +5,146 @@
   <title>Prakiraan Cuaca BMKG</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { border-collapse: collapse; margin-top: 15px; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #f0f0f0; }
-    #chartContainer { margin-top: 30px; }
-    .input-box { margin-bottom: 15px; }
-    #meta { margin: 15px 0; padding: 10px; background: #eef; border-radius: 6px; }
-    #titleArea { margin-top:20px; font-size:18px; font-weight:bold; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+    h2 {
+      margin-bottom: 10px;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 2fr; /* tabel lebih sempit (1) , chart lebih lebar (2) */
+      gap: 20px;
+      align-items: start;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background: #007bff;
+      color: white;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    #chartContainer {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
+
   <h2>Prakiraan Cuaca BMKG</h2>
+  <div id="lokasiInfo"></div>
 
-  <div class="input-box">
-    <label for="adm4">Kode ADM4:</label>
-    <input type="text" id="adm4" value="34.02.07.2001" size="20">
-    <button onclick="loadForecast()">Load Data</button>
+  <div class="container">
+    <!-- Tabel di kiri -->
+    <table id="weatherTable">
+      <thead>
+        <tr>
+          <th>Jam</th>
+          <th>Cuaca</th>
+          <th>Suhu (°C)</th>
+          <th>Kelembapan (%)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- Chart di kanan -->
+    <div id="chartContainer">
+      <canvas id="weatherChart"></canvas>
+    </div>
   </div>
-
-  <!-- metadata wilayah -->
-  <div id="meta"></div>
-  <div id="titleArea"></div>
-
-  <div id="forecastTable"></div>
-
-  <div id="chartContainer">
-    <canvas id="tempChart" height="120"></canvas>
-    <canvas id="humChart" height="120"></canvas>
-  </div>
-
-  <pre id="rawData" style="background:#f9f9f9; padding:10px; margin-top:20px; max-height:300px; overflow:auto;"></pre>
 
   <script>
-    async function loadForecast() {
-      const adm4 = document.getElementById("adm4").value.trim();
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
+    // Ganti kode adm4 sesuai kebutuhan
+    const kodeADM4 = "34.02.07.2001"; 
 
-      try {
-        const res = await fetch(url);
-        const json = await res.json();
+    async function loadWeather() {
+      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${kodeADM4}`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-        // tampilkan JSON mentah buat debug
-        document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
+      // tampilkan lokasi
+      const lokasi = data.lokasi;
+      document.getElementById("lokasiInfo").innerHTML = `
+        <strong>Provinsi:</strong> ${lokasi.provinsi} | 
+        <strong>Kab/Kota:</strong> ${lokasi.kotkab} | 
+        <strong>Kecamatan:</strong> ${lokasi.kecamatan} | 
+        <strong>Kelurahan:</strong> ${lokasi.desa}
+      `;
 
-        const wilayah = json.data?.[0];  // ambil data pertama
-        const lokasi = wilayah?.lokasi; // metadata wilayah
-        const data = wilayah?.cuaca;
-
-        console.log("Wilayah:", wilayah); // DEBUG ke console
-
-        // ===== Metadata Wilayah (fix field) =====
-        if (wilayah) {
-          const prov = lokasi.provinsi || "-";
-          const kotkab = lokasi.kotkab || "-";
-          const kec = lokasi.kecamatan || "-";
-          const desa = lokasi.desa || "-";
-
-          document.getElementById("meta").innerHTML = `
-            <b>Provinsi:</b> ${prov} <br>
-            <b>Kabupaten/Kota:</b> ${kotkab} <br>
-            <b>Kecamatan:</b> ${kec} <br>
-            <b>Desa/Kelurahan:</b> ${desa}
-          `;
-
-          // judul otomatis
-          document.getElementById("titleArea").innerHTML = 
-            `Prakiraan Cuaca untuk ${desa}, ${kec}, ${kotkab}`;
-        } else {
-          document.getElementById("meta").innerHTML = "<p>Data wilayah tidak tersedia.</p>";
-          document.getElementById("titleArea").innerHTML = "";
-        }
-
-        if (!data) {
-          document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
-          return;
-        }
-
-        // Flatten array cuaca
-        const flatData = data.flat();
-
-        // ===== Tabel Cuaca =====
-        let html = `
-          <table>
-            <thead>
-              <tr>
-                <th>Waktu Lokal</th>
-                <th>Suhu (°C)</th>
-                <th>Kelembapan (%)</th>
-                <th>Cuaca</th>
-                <th>Icon</th>
-              </tr>
-            </thead>
-            <tbody>
+      // isi tabel
+      const tbody = document.querySelector("#weatherTable tbody");
+      tbody.innerHTML = "";
+      const times = [];
+      const temps = [];
+      const hums = [];
+      data.data[0].cuaca.forEach(item => {
+        const jam = new Date(item.local_datetime).toLocaleTimeString("id-ID", {hour: "2-digit", minute:"2-digit"});
+        tbody.innerHTML += `
+          <tr>
+            <td>${jam}</td>
+            <td>${item.weather_desc}</td>
+            <td>${item.t}°C</td>
+            <td>${item.hu}%</td>
+          </tr>
         `;
+        times.push(jam);
+        temps.push(item.t);
+        hums.push(item.hu);
+      });
 
-        flatData.forEach(item => {
-          html += `
-            <tr>
-              <td>${item.local_datetime}</td>
-              <td>${item.t}</td>
-              <td>${item.hu}</td>
-              <td>${item.weather_desc}</td>
-              <td><img src="${item.image}" width="40"></td>
-            </tr>
-          `;
-        });
-
-        html += "</tbody></table>";
-        document.getElementById("forecastTable").innerHTML = html;
-
-        // ===== Grafik Suhu & Kelembapan =====
-        const labels = flatData.map(d => d.local_datetime);
-        const suhu = flatData.map(d => d.t);
-        const hum = flatData.map(d => d.hu);
-
-        renderChart("tempChart", "Suhu (°C)", labels, suhu, "rgba(255,99,132,0.7)");
-        renderChart("humChart", "Kelembapan (%)", labels, hum, "rgba(54,162,235,0.7)");
-
-      } catch (err) {
-        console.error(err);
-        document.getElementById("forecastTable").innerHTML = "<p>Error mengambil data.</p>";
-      }
-    }
-
-    let chartInstances = {};
-    function renderChart(canvasId, label, labels, data, color) {
-      if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-      const ctx = document.getElementById(canvasId).getContext("2d");
-      chartInstances[canvasId] = new Chart(ctx, {
+      // chart
+      const ctx = document.getElementById("weatherChart").getContext("2d");
+      new Chart(ctx, {
         type: "line",
         data: {
-          labels: labels,
-          datasets: [{
-            label: label,
-            data: data,
-            borderColor: color,
-            backgroundColor: color,
-            fill: false,
-            tension: 0.3
-          }]
+          labels: times,
+          datasets: [
+            {
+              label: "Suhu (°C)",
+              data: temps,
+              borderColor: "red",
+              backgroundColor: "rgba(255,0,0,0.2)",
+              tension: 0.3
+            },
+            {
+              label: "Kelembapan (%)",
+              data: hums,
+              borderColor: "blue",
+              backgroundColor: "rgba(0,0,255,0.2)",
+              tension: 0.3
+            }
+          ]
         },
         options: {
           responsive: true,
-          scales: {
-            x: { ticks: { maxRotation: 90, minRotation: 45 } }
+          plugins: {
+            legend: { position: "bottom" }
           }
         }
       });
     }
 
-    // load pertama kali
-    loadForecast();
+    loadWeather();
   </script>
+
 </body>
 </html>
