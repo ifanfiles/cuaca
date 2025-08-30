@@ -3,82 +3,160 @@
 <head>
   <meta charset="UTF-8">
   <title>Prakiraan Cuaca BMKG</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .lokasi { margin-bottom: 20px; }
-    table { border-collapse: collapse; width: 100%; max-width: 600px; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; margin-top: 15px; width: 100%; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background-color: #f2f2f2; }
+    th { background: #f0f0f0; }
+    #chartContainer { margin-top: 30px; }
+    .input-box { margin-bottom: 15px; }
+    #meta { margin: 15px 0; padding: 10px; background: #eef; border-radius: 6px; }
+    #titleArea { margin-top:20px; font-size:18px; font-weight:bold; }
   </style>
 </head>
 <body>
   <h2>Prakiraan Cuaca BMKG</h2>
 
-  <!-- Input kode adm4 -->
-  <label for="adm4">Kode ADM4:</label>
-  <input type="text" id="adm4" value="34.02.07.2001">
-  <button onclick="loadData()">Lihat Data</button>
-
-  <!-- Lokasi detail -->
-  <div class="lokasi">
-    <h3>Lokasi:</h3>
-    <p><b>Provinsi:</b> <span id="provinsi"></span></p>
-    <p><b>Kab/Kota:</b> <span id="kotkab"></span></p>
-    <p><b>Kecamatan:</b> <span id="kecamatan"></span></p>
-    <p><b>Desa/Kelurahan:</b> <span id="desa"></span></p>
+  <div class="input-box">
+    <label for="adm4">Kode ADM4:</label>
+    <input type="text" id="adm4" value="34.02.07.2001" size="20">
+    <button onclick="loadForecast()">Load Data</button>
   </div>
 
-  <!-- Tabel cuaca -->
-  <table>
-    <thead>
-      <tr>
-        <th>Jam</th>
-        <th>Cuaca</th>
-        <th>Kode</th>
-        <th>Suhu (°C)</th>
-        <th>Kelembapan (%)</th>
-      </tr>
-    </thead>
-    <tbody id="data-cuaca">
-    </tbody>
-  </table>
+  <!-- metadata wilayah -->
+  <div id="meta"></div>
+  <div id="titleArea"></div>
+
+  <div id="forecastTable"></div>
+
+  <div id="chartContainer">
+    <canvas id="tempChart" height="120"></canvas>
+    <canvas id="humChart" height="120"></canvas>
+  </div>
+
+  <pre id="rawData" style="background:#f9f9f9; padding:10px; margin-top:20px; max-height:300px; overflow:auto;"></pre>
 
   <script>
-    async function loadData() {
-      const kode = document.getElementById("adm4").value;
+    async function loadForecast() {
+      const adm4 = document.getElementById("adm4").value.trim();
+      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`;
 
       try {
-        // Ganti URL ini sesuai endpoint BMKG yg benar
-        const response = await fetch(`https://api.bmkg.go.id/publik/prakiraan-cuaca/${kode}.json`);
-        const data = await response.json();
+        const res = await fetch(url);
+        const json = await res.json();
 
-        // --- Isi info lokasi ---
-        document.getElementById("provinsi").innerText = data.lokasi.provinsi;
-        document.getElementById("kotkab").innerText = data.lokasi.kotkab;
-        document.getElementById("kecamatan").innerText = data.lokasi.kecamatan;
-        document.getElementById("desa").innerText = data.lokasi.desa;
+        // tampilkan JSON mentah buat debug
+        document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
 
-        // --- Isi tabel cuaca ---
-        const tbody = document.getElementById("data-cuaca");
-        tbody.innerHTML = ""; // reset tabel
-        data.cuaca.forEach(item => {
-          const row = `<tr>
-            <td>${item.jamCuaca}</td>
-            <td>${item.cuaca}</td>
-            <td>${item.kodeCuaca}</td>
-            <td>${item.tempC}</td>
-            <td>${item.humidity}</td>
-          </tr>`;
-          tbody.innerHTML += row;
+        const wilayah = json.data?.[0];  // ambil data pertama
+        const data = wilayah?.cuaca;
+
+        console.log("Wilayah:", wilayah); // DEBUG ke console
+
+        // ===== Metadata Wilayah (fix field) =====
+        if (wilayah) {
+          const prov = wilayah.provinsi || "-";
+          const kotkab = wilayah.kotkab || "-";
+          const kec = wilayah.kecamatan || "-";
+          const desa = wilayah.desa || "-";
+
+          document.getElementById("meta").innerHTML = `
+            <b>Provinsi:</b> ${prov} <br>
+            <b>Kabupaten/Kota:</b> ${kotkab} <br>
+            <b>Kecamatan:</b> ${kec} <br>
+            <b>Desa/Kelurahan:</b> ${desa}
+          `;
+
+          // judul otomatis
+          document.getElementById("titleArea").innerHTML = 
+            `Prakiraan Cuaca untuk ${desa}, ${kec}, ${kotkab}`;
+        } else {
+          document.getElementById("meta").innerHTML = "<p>Data wilayah tidak tersedia.</p>";
+          document.getElementById("titleArea").innerHTML = "";
+        }
+
+        if (!data) {
+          document.getElementById("forecastTable").innerHTML = "<p>Tidak ada data prakiraan.</p>";
+          return;
+        }
+
+        // Flatten array cuaca
+        const flatData = data.flat();
+
+        // ===== Tabel Cuaca =====
+        let html = `
+          <table>
+            <thead>
+              <tr>
+                <th>Waktu Lokal</th>
+                <th>Suhu (°C)</th>
+                <th>Kelembapan (%)</th>
+                <th>Cuaca</th>
+                <th>Icon</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        flatData.forEach(item => {
+          html += `
+            <tr>
+              <td>${item.local_datetime}</td>
+              <td>${item.t}</td>
+              <td>${item.hu}</td>
+              <td>${item.weather_desc}</td>
+              <td><img src="${item.image}" width="40"></td>
+            </tr>
+          `;
         });
+
+        html += "</tbody></table>";
+        document.getElementById("forecastTable").innerHTML = html;
+
+        // ===== Grafik Suhu & Kelembapan =====
+        const labels = flatData.map(d => d.local_datetime);
+        const suhu = flatData.map(d => d.t);
+        const hum = flatData.map(d => d.hu);
+
+        renderChart("tempChart", "Suhu (°C)", labels, suhu, "rgba(255,99,132,0.7)");
+        renderChart("humChart", "Kelembapan (%)", labels, hum, "rgba(54,162,235,0.7)");
+
       } catch (err) {
-        alert("Gagal mengambil data. Periksa kode ADM4 atau koneksi.");
         console.error(err);
+        document.getElementById("forecastTable").innerHTML = "<p>Error mengambil data.</p>";
       }
     }
 
+    let chartInstances = {};
+    function renderChart(canvasId, label, labels, data, color) {
+      if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+      const ctx = document.getElementById(canvasId).getContext("2d");
+      chartInstances[canvasId] = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            borderColor: color,
+            backgroundColor: color,
+            fill: false,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { ticks: { maxRotation: 90, minRotation: 45 } }
+          }
+        }
+      });
+    }
+
     // load pertama kali
-    loadData();
+    loadForecast();
   </script>
 </body>
 </html>
