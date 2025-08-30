@@ -53,9 +53,9 @@
         if (wilayah) {
           document.getElementById("meta").innerHTML = `
             <b>Provinsi:</b> ${wilayah.provinsi || "-"} <br>
-            <b>Kabupaten/Kota:</b> ${wilayah.kabupaten || "-"} <br>
+            <b>Kabupaten/Kota:</b> ${wilayah.kotkab || "-"} <br>
             <b>Kecamatan:</b> ${wilayah.kecamatan || "-"} <br>
-            <b>Kelurahan:</b> ${wilayah.lokasi || "-"}
+            <b>Kelurahan:</b> ${wilayah.desa || "-"}
           `;
         } else {
           document.getElementById("meta").innerHTML = "<p>Data wilayah tidak tersedia.</p>";
