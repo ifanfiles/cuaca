@@ -50,16 +50,17 @@
         document.getElementById("rawData").textContent = JSON.stringify(json, null, 2);
 
         const wilayah = json.data?.[0];  // ambil data pertama
+        const lokasi = wilayah?.lokasi; // metadata wilayah
         const data = wilayah?.cuaca;
 
         console.log("Wilayah:", wilayah); // DEBUG ke console
 
         // ===== Metadata Wilayah (fix field) =====
         if (wilayah) {
-          const prov = wilayah.provinsi || "-";
-          const kotkab = wilayah.kotkab || "-";
-          const kec = wilayah.kecamatan || "-";
-          const desa = wilayah.desa || "-";
+          const prov = lokasi.provinsi || "-";
+          const kotkab = lokasi.kotkab || "-";
+          const kec = lokasi.kecamatan || "-";
+          const desa = lokasi.desa || "-";
 
           document.getElementById("meta").innerHTML = `
             <b>Provinsi:</b> ${prov} <br>
