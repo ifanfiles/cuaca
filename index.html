@@ -13,9 +13,12 @@
     h2 {
       margin-bottom: 10px;
     }
+    .input-box {
+      margin-bottom: 15px;
+    }
     .container {
       display: grid;
-      grid-template-columns: 1fr 2fr; /* tabel lebih sempit (1) , chart lebih lebar (2) */
+      grid-template-columns: 1fr 2fr; /* tabel kecil, chart lebar */
       gap: 20px;
       align-items: start;
     }
@@ -50,6 +53,15 @@
 <body>
 
   <h2>Prakiraan Cuaca BMKG</h2>
+
+  <!-- Input ADM4 -->
+  <div class="input-box">
+    <label for="adm4">Kode ADM4: </label>
+    <input type="text" id="adm4" value="34.02.07.2001">
+    <button onclick="loadWeather()">Tampilkan</button>
+  </div>
+
+  <!-- Info lokasi -->
   <div id="lokasiInfo"></div>
 
   <div class="container">
@@ -60,91 +72,4 @@
           <th>Jam</th>
           <th>Cuaca</th>
           <th>Suhu (°C)</th>
-          <th>Kelembapan (%)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
-    <!-- Chart di kanan -->
-    <div id="chartContainer">
-      <canvas id="weatherChart"></canvas>
-    </div>
-  </div>
-
-  <script>
-    // Ganti kode adm4 sesuai kebutuhan
-    const kodeADM4 = "34.02.07.2001"; 
-
-    async function loadWeather() {
-      const url = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${kodeADM4}`;
-      const res = await fetch(url);
-      const data = await res.json();
-
-      // tampilkan lokasi
-      const lokasi = data.lokasi;
-      document.getElementById("lokasiInfo").innerHTML = `
-        <strong>Provinsi:</strong> ${lokasi.provinsi} | 
-        <strong>Kab/Kota:</strong> ${lokasi.kotkab} | 
-        <strong>Kecamatan:</strong> ${lokasi.kecamatan} | 
-        <strong>Kelurahan:</strong> ${lokasi.desa}
-      `;
-
-      // isi tabel
-      const tbody = document.querySelector("#weatherTable tbody");
-      tbody.innerHTML = "";
-      const times = [];
-      const temps = [];
-      const hums = [];
-      data.data[0].cuaca.forEach(item => {
-        const jam = new Date(item.local_datetime).toLocaleTimeString("id-ID", {hour: "2-digit", minute:"2-digit"});
-        tbody.innerHTML += `
-          <tr>
-            <td>${jam}</td>
-            <td>${item.weather_desc}</td>
-            <td>${item.t}°C</td>
-            <td>${item.hu}%</td>
-          </tr>
-        `;
-        times.push(jam);
-        temps.push(item.t);
-        hums.push(item.hu);
-      });
-
-      // chart
-      const ctx = document.getElementById("weatherChart").getContext("2d");
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: times,
-          datasets: [
-            {
-              label: "Suhu (°C)",
-              data: temps,
-              borderColor: "red",
-              backgroundColor: "rgba(255,0,0,0.2)",
-              tension: 0.3
-            },
-            {
-              label: "Kelembapan (%)",
-              data: hums,
-              borderColor: "blue",
-              backgroundColor: "rgba(0,0,255,0.2)",
-              tension: 0.3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: "bottom" }
-          }
-        }
-      });
-    }
-
-    loadWeather();
-  </script>
-
-</body>
-</html>
+          <th>Kelembapan
