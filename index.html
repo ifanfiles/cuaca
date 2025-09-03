@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <title>Prakiraan Cuaca Per Kabupaten</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <style>
     body { font-family: Arial; margin:0; padding:0; }
     #map { height: 500px; width: 60%; float:left; }
@@ -31,7 +33,6 @@
     </table>
   </div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     var map = L.map('map').setView([-7.5, 110], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -40,24 +41,50 @@
     fetch("Batas_SO_kel.json")
       .then(res => res.json())
       .then(geojson => {
+        // tampilkan batas desa tipis
         L.geoJSON(geojson, {
-          style: { color:"blue", weight:0.5, fillOpacity:0.05 },
-          onEachFeature: (feature, layer) => {
-            layer.bindPopup(feature.properties.WADMKK + " - " + feature.properties.KDEPUM);
-          }
+          style: { color:"blue", weight:0.3, fillOpacity:0 }
         }).addTo(map);
 
-        // Group by kabupaten (WADMKK)
-        let grouped = {};
+        // Group per kabupaten (WADMKK)
+        let groupedKab = {};
+        geojson.features.forEach(f => {
+          let kab = f.properties.WADMKK;
+          if(!groupedKab[kab]) groupedKab[kab] = [];
+          groupedKab[kab].push(f);
+        });
+
+        // Gabungkan polygon per kabupaten (pakai turf.union)
+        Object.entries(groupedKab).forEach(([kab, features]) => {
+          let unionGeom = features[0];
+          for (let i=1; i<features.length; i++){
+            try {
+              unionGeom = turf.union(unionGeom, features[i]);
+            } catch(e) {
+              console.warn("Union gagal untuk", kab, e);
+            }
+          }
+          if(unionGeom){
+            L.geoJSON(unionGeom, {
+              style: { color:"black", weight:2, fillOpacity:0 },
+              onEachFeature: (feature, layer) => {
+                layer.bindPopup("Kabupaten: " + kab);
+              }
+            }).addTo(map);
+          }
+        });
+
+        // Siapkan daftar kode adm4 per kabupaten
+        let groupedAdm4 = {};
         geojson.features.forEach(f => {
           let kab = f.properties.WADMKK;
           let kode = f.properties.KDEPUM;
-          if(!grouped[kab]) grouped[kab] = [];
-          grouped[kab].push(kode);
+          if(!groupedAdm4[kab]) groupedAdm4[kab] = [];
+          groupedAdm4[kab].push(kode);
         });
 
-        // Proses tiap kabupaten
-        processForecast(grouped);
+        // Proses cuaca per kabupaten
+        processForecast(groupedAdm4);
       });
 
     async function processForecast(grouped){
@@ -77,7 +104,7 @@
       }
     }
 
-    // Fungsi agregasi
+    // Fungsi agregasi cuaca dari seluruh adm4 dalam satu kabupaten
     async function aggregateKabupaten(adm4List){
       let allCuaca = [];
       let allSuhu = [];
