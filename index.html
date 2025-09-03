@@ -37,21 +37,21 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     // Load GeoJSON batas desa (adm4)
-    fetch("batas_wilayah.geojson")
+    fetch("Batas_SO_kel.json")
       .then(res => res.json())
       .then(geojson => {
         L.geoJSON(geojson, {
           style: { color:"blue", weight:0.5, fillOpacity:0.05 },
           onEachFeature: (feature, layer) => {
-            layer.bindPopup(feature.properties.DESA + " - " + feature.properties.KABUPATEN);
+            layer.bindPopup(feature.properties.WADMKK + " - " + feature.properties.KDEPUM);
           }
         }).addTo(map);
 
-        // Group by kabupaten
+        // Group by kabupaten (WADMKK)
         let grouped = {};
         geojson.features.forEach(f => {
-          let kab = f.properties.KABUPATEN;
-          let kode = f.properties.KODE_ADM4;
+          let kab = f.properties.WADMKK;
+          let kode = f.properties.KDEPUM;
           if(!grouped[kab]) grouped[kab] = [];
           grouped[kab].push(kode);
         });
