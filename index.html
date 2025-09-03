@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Export GIF Prakiraan Cuaca</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+</head>
+<body>
+  <div id="capture" style="width:600px;height:400px;background:#eef;">
+    <h3>Prakiraan Cuaca Wilayah</h3>
+    <p id="status">Hujan Ringan</p>
+  </div>
+
+  <button onclick="makeGif()">Export ke GIF</button>
+  <div id="preview"></div>
+
+  <script>
+    async function makeGif(){
+      let frames = [];
+      let kondisi = ["Hujan Ringan","Hujan Sedang","Tidak Ada Hujan"];
+      
+      for(let k of kondisi){
+        document.getElementById("status").innerText = k;
+        await new Promise(r => setTimeout(r, 500)); // jeda
+        let canvas = await html2canvas(document.getElementById("capture"));
+        frames.push(canvas.toDataURL("image/png"));
+      }
+
+      gifshot.createGIF({
+        images: frames,
+        interval: 1, // detik per frame
+        gifWidth: 600,
+        gifHeight: 400
+      }, function(obj) {
+        if(!obj.error) {
+          document.getElementById("preview").innerHTML = 
+            '<img src="'+obj.image+'" />';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
