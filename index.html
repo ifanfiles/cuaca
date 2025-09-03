@@ -1,40 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <title>Export GIF Prakiraan Cuaca</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Prakiraan Cuaca BBWS Serayu Opak</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    body { font-family: Arial; }
+    #map { height: 400px; width: 60%; float:left; }
+    #table { width: 35%; float:right; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 4px; font-size: 12px; }
+    .legend { clear: both; margin-top:10px; }
+  </style>
 </head>
 <body>
-  <div id="capture" style="width:600px;height:400px;background:#eef;">
-    <h3>Prakiraan Cuaca Wilayah</h3>
-    <p id="status">Hujan Ringan</p>
+  <h2>Prakiraan Cuaca Umum BBWS Serayu Opak</h2>
+  <div id="map"></div>
+  <div id="table">
+    <table id="forecastTable">
+      <thead>
+        <tr><th>Jam</th><th>Cuaca</th><th>Suhu</th><th>Kelembapan</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
-
-  <button onclick="makeGif()">Export ke GIF</button>
+  <div class="legend">
+    <b>Legenda:</b><br>
+    <span style="background:green;color:white;">Hujan Ringan</span>: 0,5-20 mm/jam<br>
+    <span style="background:orange;">Hujan Sedang</span>: 20-50 mm/jam<br>
+    <span style="background:red;color:white;">Hujan Lebat</span>: 50-100 mm/jam<br>
+  </div>
+  <button onclick="exportGif()">Export GIF</button>
   <div id="preview"></div>
 
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <script>
-    async function makeGif(){
+    // Inisialisasi Peta
+    var map = L.map('map').setView([-7.7, 110.3], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // Contoh batas wilayah (dummy polygon di sekitar Yogyakarta)
+    var polygon = L.polygon([
+      [-7.9, 110.1],
+      [-7.9, 110.6],
+      [-7.5, 110.6],
+      [-7.5, 110.1]
+    ], {color: 'blue'}).addTo(map);
+
+    // Ambil data prakiraan BMKG (contoh kode ADM4 untuk Sleman = 3471090)
+    let url = "https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=3471090";
+
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        let prakiraan = data.data[0].cuaca; // ambil array prakiraan
+        let tbody = document.querySelector("#forecastTable tbody");
+        tbody.innerHTML = "";
+
+        prakiraan.slice(0,6).forEach(item => { // ambil 6 jam ke depan
+          let tr = document.createElement("tr");
+          tr.innerHTML = `<td>${item.jam}</td>
+                          <td>${item.weather_desc}</td>
+                          <td>${item.t}°C</td>
+                          <td>${item.hu}%</td>`;
+          tbody.appendChild(tr);
+        });
+      });
+
+    // Export GIF
+    async function exportGif(){
       let frames = [];
-      let kondisi = ["Hujan Ringan","Hujan Sedang","Tidak Ada Hujan"];
-      
-      for(let k of kondisi){
-        document.getElementById("status").innerText = k;
-        await new Promise(r => setTimeout(r, 500)); // jeda
-        let canvas = await html2canvas(document.getElementById("capture"));
+      for(let i=0;i<3;i++){ // ambil 3 frame demo
+        await new Promise(r => setTimeout(r, 500));
+        let canvas = await html2canvas(document.body);
         frames.push(canvas.toDataURL("image/png"));
       }
-
       gifshot.createGIF({
         images: frames,
-        interval: 1, // detik per frame
-        gifWidth: 600,
-        gifHeight: 400
-      }, function(obj) {
-        if(!obj.error) {
-          document.getElementById("preview").innerHTML = 
-            '<img src="'+obj.image+'" />';
+        interval: 1,
+        gifWidth: 800,
+        gifHeight: 600
+      }, obj => {
+        if(!obj.error){
+          document.getElementById("preview").innerHTML = `<img src="${obj.image}"/>`;
         }
       });
     }
