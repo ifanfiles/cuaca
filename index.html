@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <h2 style="text-align:center">Prakiraan Cuaca Umum Per Kabupaten</h2>
+  <h2 style="text-align:center">Prakiraan Cuaca Per Kabupaten</h2>
   <div id="map"></div>
   <div id="table">
     <table id="forecastTable">
@@ -36,36 +36,40 @@
     var map = L.map('map').setView([-7.5, 110], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Load GeoJSON batas kabupaten
+    // Load GeoJSON batas desa (adm4)
     fetch("batas_wilayah.geojson")
       .then(res => res.json())
       .then(geojson => {
         L.geoJSON(geojson, {
-          style: { color:"blue", weight:1, fillOpacity:0.1 },
+          style: { color:"blue", weight:0.5, fillOpacity:0.05 },
           onEachFeature: (feature, layer) => {
-            layer.bindPopup(feature.properties.KABUPATEN);
+            layer.bindPopup(feature.properties.DESA + " - " + feature.properties.KABUPATEN);
           }
         }).addTo(map);
 
-        // Proses per kabupaten
-        processForecast(geojson);
+        // Group by kabupaten
+        let grouped = {};
+        geojson.features.forEach(f => {
+          let kab = f.properties.KABUPATEN;
+          let kode = f.properties.KODE_ADM4;
+          if(!grouped[kab]) grouped[kab] = [];
+          grouped[kab].push(kode);
+        });
+
+        // Proses tiap kabupaten
+        processForecast(grouped);
       });
 
-    async function processForecast(geojson){
+    async function processForecast(grouped){
       let tbody = document.querySelector("#forecastTable tbody");
-      let kabList = geojson.features;
-
       let no = 1;
-      for (let kab of kabList){
-        let namaKab = kab.properties.KABUPATEN;
-        let adm4List = kab.properties.ADM4_LIST; 
-        // asumsi di GeoJSON ada array kode adm4 di properties.ADM4_LIST
 
+      for (let [kabupaten, adm4List] of Object.entries(grouped)){
         let result = await aggregateKabupaten(adm4List);
 
         let tr = document.createElement("tr");
         tr.innerHTML = `<td>${no++}</td>
-                        <td>${namaKab}</td>
+                        <td>${kabupaten}</td>
                         <td>${result.cuaca}</td>
                         <td>${result.suhu}</td>
                         <td>${result.hum}</td>`;
@@ -96,10 +100,12 @@
       // Hitung mayoritas cuaca
       let count = {};
       allCuaca.forEach(c => { count[c] = (count[c]||0)+1 });
-      let cuacaDominan = Object.entries(count).sort((a,b)=>b[1]-a[1])[0][0];
+      let cuacaDominan = allCuaca.length > 0
+        ? Object.entries(count).sort((a,b)=>b[1]-a[1])[0][0]
+        : "-";
 
       // Rata-rata suhu & kelembapan
-      let avg = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+      let avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
       let suhu = (avg(allSuhu)||0).toFixed(1);
       let hum = (avg(allHum)||0).toFixed(1);
 
