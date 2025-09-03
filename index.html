@@ -5,7 +5,6 @@
   <title>Prakiraan Cuaca Per Kabupaten</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <style>
     body { font-family: Arial; margin:0; padding:0; }
     #map { height: 500px; width: 60%; float:left; }
@@ -54,24 +53,17 @@
           groupedKab[kab].push(f);
         });
 
-        // Gabungkan polygon per kabupaten (pakai turf.union)
+        // Gambar outline kabupaten (tanpa union, pakai featureGroup)
         Object.entries(groupedKab).forEach(([kab, features]) => {
-          let unionGeom = features[0];
-          for (let i=1; i<features.length; i++){
-            try {
-              unionGeom = turf.union(unionGeom, features[i]);
-            } catch(e) {
-              console.warn("Union gagal untuk", kab, e);
+          let kabLayer = L.featureGroup();
+          features.forEach(f => {
+            if (f.geometry) {
+              L.geoJSON(f, {style:{color:"black", weight:2, fillOpacity:0}})
+                .addTo(kabLayer);
             }
-          }
-          if(unionGeom){
-            L.geoJSON(unionGeom, {
-              style: { color:"black", weight:2, fillOpacity:0 },
-              onEachFeature: (feature, layer) => {
-                layer.bindPopup("Kabupaten: " + kab);
-              }
-            }).addTo(map);
-          }
+          });
+          kabLayer.addTo(map);
+          kabLayer.bindPopup("Kabupaten: " + kab);
         });
 
         // Siapkan daftar kode adm4 per kabupaten
@@ -141,3 +133,4 @@
   </script>
 </body>
 </html>
+
