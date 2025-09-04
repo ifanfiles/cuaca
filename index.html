@@ -7,16 +7,6 @@
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
-      background: #f9f9f9;
-    }<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>Prakiraan Cuaca Kabupaten</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
       background: #f4f6f9;
     }
     h1 { text-align: center; }
@@ -85,75 +75,6 @@
       }
     }
     loadData();
-  </script>
-</body>
-</html>
-
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    table {
-      border-collapse: collapse;
-      margin: 20px auto;
-      width: 80%;
-      background: #fff;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    th, td {
-      padding: 10px;
-      border: 1px solid #ccc;
-      text-align: center;
-    }
-    th {
-      background: #007bff;
-      color: #fff;
-    }
-    tr:nth-child(even) {
-      background: #f2f2f2;
-    }
-  </style>
-</head>
-<body>
-  <h1>Prakiraan Cuaca Kabupaten</h1>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Kabupaten</th>
-        <th>Cuaca</th>
-        <th>Suhu (°C)</th>
-        <th>Kelembapan (%)</th>
-      </tr>
-    </thead>
-    <tbody id="cuacaTable">
-      <tr><td colspan="4">Memuat data...</td></tr>
-    </tbody>
-  </table>
-
-  <script>
-    fetch("prakiraan_kabupaten.json")
-      .then(res => res.json())
-      .then(data => {
-        let tbody = document.getElementById("cuacaTable");
-        tbody.innerHTML = ""; // kosongkan dulu
-
-        for (let kab in data) {
-          let val = data[kab];
-          let row = `
-            <tr>
-              <td>${kab}</td>
-              <td>${val.cuaca}</td>
-              <td>${val.suhu ?? "-"}</td>
-              <td>${val.hum ?? "-"}</td>
-            </tr>`;
-          tbody.innerHTML += row;
-        }
-      })
-      .catch(err => {
-        document.getElementById("cuacaTable").innerHTML =
-          `<tr><td colspan="4">Gagal memuat data: ${err}</td></tr>`;
-      });
   </script>
 </body>
 </html>
