@@ -14,9 +14,12 @@
     table{width:100%;border-collapse:collapse;font-size:13px}
     th,td{padding:8px;border-bottom:1px solid #eee;text-align:center}
     th{background:#007acc;color:#fff;position:sticky;top:0}
-    .right{text-align:right}
     .muted{color:#666;font-size:13px}
     canvas{max-width:100%}
+    .cuaca-cell{font-weight:bold;color:#000}
+    .legend{margin-top:10px;font-size:13px}
+    .legend-item{display:flex;align-items:center;margin:2px 0}
+    .legend-box{width:20px;height:12px;margin-right:6px;border:1px solid #000}
     @media(max-width:940px){.layout{grid-template-columns:1fr}}
   </style>
 </head>
@@ -46,6 +49,13 @@
           <tbody id="tbody"><tr><td colspan="4">...</td></tr></tbody>
         </table>
       </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-box" style="background:#00FF00"></div> Hujan Ringan : 0.5 - 20 mm/jam</div>
+        <div class="legend-item"><div class="legend-box" style="background:#FFFF00"></div> Hujan Sedang : 20 - 50 mm/jam</div>
+        <div class="legend-item"><div class="legend-box" style="background:#FFA500"></div> Hujan Lebat : 50 - 100 mm/jam</div>
+        <div class="legend-item"><div class="legend-box" style="background:#FF0000"></div> Hujan Sangat Lebat : 100 - 150 mm/jam</div>
+        <div class="legend-item"><div class="legend-box" style="background:#8000FF"></div> Hujan Ekstrem : > 150 mm/jam</div>
+      </div>
     </div>
 
     <div class="card">
@@ -66,10 +76,20 @@
     }
 
     function extractDate(label){
-      // ambil bagian tanggal saja
       const parts=label.split(" ");
       if(parts.length>=4) return parts[1]+" "+parts[2]+" "+parts[3];
       return label;
+    }
+
+    function warnaCuaca(desc){
+      if(!desc) return "#E0E0E0";
+      desc=desc.toLowerCase();
+      if(desc.includes("ringan")) return "#00FF00";
+      if(desc.includes("sedang")) return "#FFFF00";
+      if(desc.includes("lebat") && !desc.includes("sangat")) return "#FFA500";
+      if(desc.includes("sangat lebat")) return "#FF0000";
+      if(desc.includes("ekstrem")) return "#8000FF";
+      return "#E0E0E0";
     }
 
     async function loadData(){
@@ -84,26 +104,25 @@
     function render(kab){
       const slots=DATA[kab]||{};
       const labels=Object.keys(slots).sort((a,b)=>new Date(a.split("–")[0])-new Date(b.split("–")[0]));
-
-      // isi dropdown tanggal
       const tanggalUnik=[...new Set(labels.map(l=>extractDate(l)))];
       const dateSel=document.getElementById("dateSelect");
       dateSel.innerHTML=tanggalUnik.map(d=>`<option>${d}</option>`).join("");
       dateSel.onchange=()=>render(kab);
-
       const chosenDate=dateSel.value||tanggalUnik[0];
 
       const tbody=document.getElementById("tbody");
       const filtered=labels.filter(l=>extractDate(l)===chosenDate);
-
       tbody.innerHTML=filtered.map(l=>{
-        const v=slots[l];
-        return `<tr><td>${l}</td><td>${v.cuaca}</td><td>${v.suhu}</td><td>${v.hum}</td></tr>`;
+        const v=slots[l]; const bg=warnaCuaca(v.cuaca);
+        return `<tr>
+          <td>${l}</td>
+          <td class="cuaca-cell" style="background:${bg}">${v.cuaca}</td>
+          <td>${v.suhu}</td><td>${v.hum}</td>
+        </tr>`;
       }).join("");
 
       document.getElementById("info").textContent=`${kab} — ${filtered.length} slot (${chosenDate})`;
 
-      // grafik
       const x=[],tmin=[],tmax=[],hmin=[],hmax=[];
       filtered.forEach(l=>{
         const v=slots[l];
