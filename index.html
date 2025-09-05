@@ -2,174 +2,277 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Prakiraan Cuaca DIY (slot 3-jam)</title>
+  <title>Viewer Prakiraan (3-jam) — Per Kabupaten</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body{font-family:Arial,Segoe UI,Roboto; margin:16px; background:#f6f8fb; color:#111}
-    h1{text-align:center; margin-bottom:12px}
-    .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
-    select,button{padding:8px 10px;border-radius:6px;border:1px solid #ccc;background:#fff}
-    .layout{display:grid;grid-template-columns:1fr 480px;gap:16px;align-items:start}
-    .card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,0.06)}
+    body{font-family:system-ui,Arial,Segoe UI,Roboto; margin:16px; background:#f6f8fb; color:#111}
+    h1{margin:0 0 8px;text-align:center}
+    .top {display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+    select,input,button{padding:8px 10px;border-radius:8px;border:1px solid #d0d7e0;background:#fff}
+    .layout {display:grid; grid-template-columns: 1fr 480px; gap:16px; align-items:start}
+    .card {background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 18px rgba(18,38,63,0.06)}
     table{width:100%;border-collapse:collapse;font-size:13px}
-    th,td{padding:8px;border-bottom:1px solid #eee;text-align:center}
-    th{background:#007acc;color:#fff;position:sticky;top:0}
+    th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}
+    th{background:#f3f6fb;position:sticky;top:0}
+    .small{font-size:12px;color:#666}
+    .right{text-align:right}
     .muted{color:#666;font-size:13px}
+    .controls-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     canvas{max-width:100%}
-    .cuaca-cell{font-weight:bold;color:#000}
-    .legend{margin-top:10px;font-size:13px}
-    .legend-item{display:flex;align-items:center;margin:2px 0}
-    .legend-box{width:20px;height:12px;margin-right:6px;border:1px solid #000}
-    @media(max-width:940px){.layout{grid-template-columns:1fr}}
+    .download {margin-left:auto}
+    @media(max-width:940px){ .layout{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
-  <h1>Prakiraan Cuaca DIY (slot 3-jam)</h1>
+  <h1>Prakiraan Cuaca Per Kabupaten (slot 3-jam)</h1>
 
-  <div class="controls">
-    <label>Kabupaten:
-      <select id="kabSelect"></select>
-    </label>
-    <label>Tanggal:
-      <select id="dateSelect"></select>
-    </label>
-    <button id="toCsv">Download CSV</button>
+  <div class="top">
+    <div class="controls-row card">
+      <label>File JSON:
+        <input id="dataFile" type="text" value="prakiraan_kabupaten_full3jam.json" style="width:260px" />
+      </label>
+      <button id="loadBtn">Muat Data</button>
+
+      <label>Kabupaten:
+        <select id="kabSelect" style="min-width:260px"></select>
+      </label>
+
+      <label>Filter cuaca:
+        <input id="filterCuaca" placeholder="kata kunci cuaca (mis. Hujan)" />
+      </label>
+
+      <button id="toCsv" class="download">Download CSV</button>
+    </div>
   </div>
 
   <div class="layout">
     <div class="card">
-      <div class="muted" id="info">Belum ada data</div>
-      <div style="overflow:auto;max-height:560px">
-        <table id="cuacaTable">
-          <thead>
-            <tr>
-              <th>Waktu</th><th>Cuaca</th><th>Suhu (°C)</th><th>Kelembapan (%)</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"><tr><td colspan="4">...</td></tr></tbody>
-        </table>
+      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="muted" id="metaInfo">Belum memuat data</div>
+        <div class="small">Jumlah slot: <span id="slotCount">0</span></div>
       </div>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-box" style="background:#00FF00"></div> Hujan Ringan : 0.5 - 20 mm/jam</div>
-        <div class="legend-item"><div class="legend-box" style="background:#FFFF00"></div> Hujan Sedang : 20 - 50 mm/jam</div>
-        <div class="legend-item"><div class="legend-box" style="background:#FFA500"></div> Hujan Lebat : 50 - 100 mm/jam</div>
-        <div class="legend-item"><div class="legend-box" style="background:#FF0000"></div> Hujan Sangat Lebat : 100 - 150 mm/jam</div>
-        <div class="legend-item"><div class="legend-box" style="background:#8000FF"></div> Hujan Ekstrem : > 150 mm/jam</div>
+
+      <div style="overflow:auto;max-height:560px">
+        <table id="table">
+          <thead>
+            <tr><th>Waktu (start–end)</th><th>Cuaca</th><th class="right">Suhu (°C)</th><th class="right">Kelembapan (%)</th></tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="4" class="small">Belum ada data — klik "Muat Data"</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
     <div class="card">
+      <div style="margin-bottom:8px">
+        <div class="small">Grafik suhu & kelembapan (min/max)</div>
+      </div>
       <canvas id="chart" height="300"></canvas>
+      <div style="margin-top:10px" class="small muted">Catatan: jika rentang suhu/kelembapan kosong, titik dihilangkan.</div>
     </div>
   </div>
 
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <script>
-    const DATA_FILE = "prakiraan_DIY_full3jam.json";
-    let DATA=null, chart=null;
+  // ---------- util ----------
+  function parseLabelToDate(label){
+    // label expected like "Thu, 04 Sep 2025 00:00–03:00" or fallback "2025-09-04 00:00–03:00"
+    const m = label.match(/(\d{4})[-\/](\d{2})[-\/](\d{2})\s+(\d{2}):(\d{2})/) ||
+              label.match(/(\d{2})\s([A-Za-z]{3})\s(\d{4})\s(\d{2}):(\d{2})/);
+    if(!m) {
+      // try simple iso start
+      const iso = label.split('–')[0].trim();
+      const d = new Date(iso);
+      if(!isNaN(d)) return d;
+      return null;
+    }
+    // case of dd Mon yyyy hh:mm
+    if(m[2] && isNaN(m[2])) {
+      const dd = m[1], monStr = m[2], yyyy = m[3], hh = m[4], mm = m[5];
+      const monMap = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+      return new Date(+yyyy, monMap[monStr]||0, +dd, +hh, +mm);
+    } else {
+      // iso-like groups
+      const yyyy=m[1], mm=m[2], dd=m[3], hh=m[4], minu=m[5];
+      return new Date(+yyyy, +mm-1, +dd, +hh, +minu);
+    }
+  }
 
-    function parseRange(s){
-      if(!s||s=="-") return [null,null];
-      const m=s.match(/(-?\d+)\s*[–-]\s*(-?\d+)/);
-      if(m) return [parseFloat(m[1]),parseFloat(m[2])];
-      const n=parseFloat(s); return isNaN(n)?[null,null]:[n,n];
+  function parseRangeString(s){
+    // s like "24–30" or "-" or "24 - 30"
+    if(!s || typeof s !== 'string') return [null,null];
+    const m = s.match(/(-?\d+)\s*[–-]\s*(-?\d+)/);
+    if(m){
+      return [Number(m[1]), Number(m[2])];
+    }
+    // single number?
+    const n = parseFloat(s);
+    if(!isNaN(n)) return [n,n];
+    return [null,null];
+  }
+
+  function downloadText(filename, text){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], {type:'text/plain'}));
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ---------- state ----------
+  let RAW = null; // full JSON
+  let labelsSorted = []; // sorted labels (time text) globally
+  let chart = null;
+
+  // ---------- load & render ----------
+  async function loadAndPrepare(fileName){
+    try {
+      const res = await fetch(fileName, {cache:'no-store'});
+      if(!res.ok) throw new Error('Gagal memuat: '+res.status);
+      RAW = await res.json();
+    } catch(err) {
+      alert('Gagal load JSON: '+err.message);
+      return;
     }
 
-    function extractDate(label){
-      const parts=label.split(" ");
-      if(parts.length>=4) return parts[1]+" "+parts[2]+" "+parts[3];
-      return label;
+    // --- build global label set and sort by date ---
+    const labelSet = new Set();
+    for(const kab in RAW){
+      const slotMap = RAW[kab];
+      for(const lbl in slotMap) labelSet.add(lbl);
     }
+    labelsSorted = Array.from(labelSet).map(l => ({label:l, dt: parseLabelToDate(l)}))
+      .sort((a,b)=>{
+        if(a.dt && b.dt) return a.dt - b.dt;
+        if(a.dt && !b.dt) return -1;
+        if(!a.dt && b.dt) return 1;
+        return a.label.localeCompare(b.label);
+      })
+      .map(o => o.label);
 
-    function warnaCuaca(desc){
-      if(!desc) return "#E0E0E0";
-      desc=desc.toLowerCase();
-      if(desc.includes("ringan")) return "#00FF00";
-      if(desc.includes("sedang")) return "#FFFF00";
-      if(desc.includes("lebat") && !desc.includes("sangat")) return "#FFA500";
-      if(desc.includes("sangat lebat")) return "#FF0000";
-      if(desc.includes("ekstrem")) return "#8000FF";
-      return "#E0E0E0";
-    }
+    populateKabupatenSelect();
+    document.getElementById('metaInfo').textContent = `Terbaca ${Object.keys(RAW).length} kabupaten — ${labelsSorted.length} slot waktu unik`;
+  }
 
-    async function loadData(){
-      const res=await fetch(DATA_FILE);
-      DATA=await res.json();
-      const kabSel=document.getElementById("kabSelect");
-      kabSel.innerHTML=Object.keys(DATA).map(k=>`<option>${k}</option>`).join("");
-      kabSel.addEventListener("change",()=>render(kabSel.value));
-      render(Object.keys(DATA)[0]);
-    }
-
-    function render(kab){
-      const slots=DATA[kab]||{};
-      const labels=Object.keys(slots).sort((a,b)=>new Date(a.split("–")[0])-new Date(b.split("–")[0]));
-      const tanggalUnik=[...new Set(labels.map(l=>extractDate(l)))];
-      const dateSel=document.getElementById("dateSelect");
-      dateSel.innerHTML=tanggalUnik.map(d=>`<option>${d}</option>`).join("");
-      dateSel.onchange=()=>render(kab);
-      const chosenDate=dateSel.value||tanggalUnik[0];
-
-      const tbody=document.getElementById("tbody");
-      const filtered=labels.filter(l=>extractDate(l)===chosenDate);
-      tbody.innerHTML=filtered.map(l=>{
-        const v=slots[l]; const bg=warnaCuaca(v.cuaca);
-        return `<tr>
-          <td>${l}</td>
-          <td class="cuaca-cell" style="background:${bg}">${v.cuaca}</td>
-          <td>${v.suhu}</td><td>${v.hum}</td>
-        </tr>`;
-      }).join("");
-
-      document.getElementById("info").textContent=`${kab} — ${filtered.length} slot (${chosenDate})`;
-
-      const x=[],tmin=[],tmax=[],hmin=[],hmax=[];
-      filtered.forEach(l=>{
-        const v=slots[l];
-        x.push(l);
-        const [a,b]=parseRange(v.suhu); tmin.push(a); tmax.push(b);
-        const [c,d]=parseRange(v.hum); hmin.push(c); hmax.push(d);
-      });
-      drawChart(x,tmin,tmax,hmin,hmax);
-    }
-
-    function drawChart(x,tmin,tmax,hmin,hmax){
-      const ctx=document.getElementById("chart").getContext("2d");
-      if(chart) chart.destroy();
-      chart=new Chart(ctx,{
-        type:"line",
-        data:{labels:x,datasets:[
-          {label:"Suhu min",data:tmin,borderColor:"#1f77b4",tension:0.2,spanGaps:true},
-          {label:"Suhu max",data:tmax,borderColor:"#ff7f0e",tension:0.2,spanGaps:true},
-          {label:"Hum min",data:hmin,borderColor:"#2ca02c",tension:0.2,spanGaps:true,yAxisID:"y2"},
-          {label:"Hum max",data:hmax,borderColor:"#d62728",tension:0.2,spanGaps:true,yAxisID:"y2"},
-        ]},
-        options:{interaction:{mode:"index",intersect:false},scales:{
-          y:{title:{display:true,text:"Suhu (°C)"}},
-          y2:{position:"right",grid:{drawOnChartArea:false},title:{display:true,text:"Kelembapan (%)"}}
-        }}
-      });
-    }
-
-    document.getElementById("toCsv").addEventListener("click",()=>{
-      const kab=document.getElementById("kabSelect").value;
-      const slots=DATA[kab]; 
-      const labels=Object.keys(slots);
-      const chosenDate=document.getElementById("dateSelect").value;
-      const rows=[["kabupaten","waktu","cuaca","suhu","hum"]];
-      labels.forEach(l=>{
-        if(extractDate(l)===chosenDate){
-          const v=slots[l]; rows.push([kab,l,v.cuaca,v.suhu,v.hum]);
-        }
-      });
-      const csv=rows.map(r=>r.join(",")).join("\n");
-      const a=document.createElement("a");
-      a.href=URL.createObjectURL(new Blob([csv]));
-      a.download=`${kab}_${chosenDate}.csv`;
-      a.click();
+  function populateKabupatenSelect(){
+    const sel = document.getElementById('kabSelect');
+    sel.innerHTML = '';
+    const names = Object.keys(RAW).sort((a,b)=>a.localeCompare(b));
+    names.forEach(n => {
+      const opt = document.createElement('option'); opt.value = n; opt.textContent = n;
+      sel.appendChild(opt);
     });
+    sel.addEventListener('change', ()=> renderForKabupaten(sel.value));
+    if(names.length) renderForKabupaten(names[0]);
+  }
 
-    loadData();
+  function renderForKabupaten(kab){
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    const slotMap = RAW[kab] || {};
+    // ensure we iterate using labelsSorted so columns consistent
+    const rows = [];
+    for(const label of labelsSorted){
+      if(slotMap[label]){
+        const v = slotMap[label];
+        rows.push({label, cuaca:v.cuaca ?? '-', suhu:v.suhu ?? '-', hum:v.hum ?? '-'});
+      }
+    }
+    // apply cuaca filter
+    const cuFilter = document.getElementById('filterCuaca').value.trim().toLowerCase();
+    const filtered = rows.filter(r => !cuFilter || (String(r.cuaca).toLowerCase().includes(cuFilter)));
+
+    if(!filtered.length){
+      tbody.innerHTML = '<tr><td colspan="4" class="small muted">Tidak ada data untuk filter saat ini</td></tr>';
+      document.getElementById('slotCount').textContent = '0';
+      drawChart([],[],[],[]);
+      return;
+    }
+    const html = filtered.map(r => `<tr>
+      <td>${r.label}</td>
+      <td>${r.cuaca}</td>
+      <td class="right">${r.suhu}</td>
+      <td class="right">${r.hum}</td>
+    </tr>`).join('');
+    tbody.innerHTML = html;
+    document.getElementById('slotCount').textContent = filtered.length;
+
+    // prepare data for chart (parse min/max)
+    const x = [], tmin = [], tmax = [], hmin = [], hmax = [];
+    filtered.forEach(r => {
+      x.push(r.label);
+      const [a,b] = parseRangeString(r.suhu); tmin.push(a); tmax.push(b);
+      const [c,d] = parseRangeString(r.hum); hmin.push(c); hmax.push(d);
+    });
+    drawChart(x, tmin, tmax, hmin, hmax);
+  }
+
+  function drawChart(labels, tmin, tmax, hmin, hmax){
+    const ctx = document.getElementById('chart').getContext('2d');
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Suhu min (°C)', data:tmin, borderColor:'#1f77b4', backgroundColor:'rgba(31,119,180,0.08)', tension:0.2, spanGaps:true },
+          { label:'Suhu max (°C)', data:tmax, borderColor:'#ff7f0e', backgroundColor:'rgba(255,127,14,0.08)', tension:0.2, spanGaps:true },
+          { label:'Hum min (%)', data:hmin, borderColor:'#2ca02c', backgroundColor:'rgba(44,160,44,0.06)', tension:0.2, spanGaps:true, yAxisID:'y2' },
+          { label:'Hum max (%)', data:hmax, borderColor:'#d62728', backgroundColor:'rgba(214,39,40,0.06)', tension:0.2, spanGaps:true, yAxisID:'y2' }
+        ]
+      },
+      options: {
+        interaction:{mode:'index',intersect:false},
+        stacked:false,
+        scales:{
+          y:{type:'linear',position:'left',title:{display:true,text:'Suhu (°C)'}},
+          y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Kelembapan (%)'}}
+        },
+        plugins:{legend:{position:'top'},tooltip:{enabled:true}}
+      }
+    });
+  }
+
+  // CSV export
+  function exportCSVForCurrentKab(){
+    const kab = document.getElementById('kabSelect').value;
+    if(!kab) return alert('Pilih kabupaten dahulu');
+    const slotMap = RAW[kab] || {};
+    const rows = [];
+    rows.push(['kabupaten','label','cuaca','suhu_min','suhu_max','hum_min','hum_max']);
+    for(const label of labelsSorted){
+      const v = slotMap[label];
+      if(!v) continue;
+      const [smin,smax] = parseRangeString(v.suhu);
+      const [hmin,hmax] = parseRangeString(v.hum);
+      rows.push([kab, label, v.cuaca ?? '-', smin ?? '', smax ?? '', hmin ?? '', hmax ?? '']);
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    downloadText(`${kab.replace(/\s+/g,'_')}_prakiraan.csv`, csv);
+  }
+
+  // events
+  document.getElementById('loadBtn').addEventListener('click', ()=>{
+    const f = document.getElementById('dataFile').value.trim() || 'prakiraan_kabupaten_full3jam.json';
+    loadAndPrepare(f);
+  });
+  document.getElementById('filterCuaca').addEventListener('input', ()=> {
+    const sel = document.getElementById('kabSelect');
+    if(sel.value) renderForKabupaten(sel.value);
+  });
+  document.getElementById('toCsv').addEventListener('click', exportCSVForCurrentKab);
+
+  // auto-load default filename on open
+  window.addEventListener('load', ()=> {
+    // attempt to load default file
+    // if you host on GitHub Pages ensure JSON filename matches
+    // otherwise change the input value
+    const defaultFile = document.getElementById('dataFile').value.trim();
+    loadAndPrepare(defaultFile);
+  });
   </script>
 </body>
 </html>
