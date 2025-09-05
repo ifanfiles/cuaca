@@ -8,7 +8,7 @@
     body{font-family:system-ui,Arial,Segoe UI,Roboto; margin:16px; background:#f6f8fb; color:#111}
     h1{margin:0 0 8px;text-align:center}
     .top {display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
-    select,input,button{padding:8px 10px;border-radius:8px;border:1px solid #d0d7e0;background:#fff}
+    select,input,button{padding:8px 10px;border-radius:8px;border:1px solid #d0d7e0}
     .layout {display:grid; grid-template-columns: 1fr 480px; gap:16px; align-items:start}
     .card {background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 18px rgba(18,38,63,0.06)}
     table{width:100%;border-collapse:collapse;font-size:13px}
@@ -21,6 +21,19 @@
     canvas{max-width:100%}
     .download {margin-left:auto}
     @media(max-width:940px){ .layout{grid-template-columns:1fr} }
+
+    /* --- Style tombol --- */
+    button {
+      background:#2c7be5;
+      color:#fff;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+      transition:background 0.2s;
+    }
+    button:hover { background:#1a5fb4; }
   </style>
 </head>
 <body>
@@ -77,67 +90,23 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-  // ---------- util ----------
-  function parseLabelToDate(label){
-    // ambil bagian sebelum tanda "–"
-    let startStr = label.split("–")[0].trim();
-    // buang teks hari di depan (mis. "Fri, ")
-    startStr = startStr.replace(/^[A-Za-z]+,\s*/,"");
-    const d = new Date(startStr);
-    if(!isNaN(d)) return d;
-    return null;
-  }
-
-  function parseRangeString(s){
-    if(!s || typeof s !== 'string') return [null,null];
-    const m = s.match(/(-?\d+)\s*[–-]\s*(-?\d+)/);
-    if(m) return [Number(m[1]), Number(m[2])];
-    const n = parseFloat(s);
-    if(!isNaN(n)) return [n,n];
-    return [null,null];
-  }
-
-  function downloadText(filename, text){
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([text], {type:'text/plain'}));
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  // ---------- state ----------
   let RAW = null;
-  let labelsSorted = [];
   let chart = null;
 
-  // ---------- load & render ----------
   async function loadAndPrepare(fileName){
     try {
+      console.log("📥 Fetching:", fileName);
       const res = await fetch(fileName, {cache:'no-store'});
-      if(!res.ok) throw new Error('Gagal memuat: '+res.status);
+      if(!res.ok) throw new Error('HTTP '+res.status+' — '+res.statusText);
       RAW = await res.json();
+      console.log("✅ Data berhasil dimuat", RAW);
     } catch(err) {
-      alert('Gagal load JSON: '+err.message);
+      alert('❌ Gagal load JSON: '+err.message);
+      console.error("Gagal load JSON:", err);
       return;
     }
-
-    // --- build global label set and sort by datetime ---
-    const labelSet = new Set();
-    for(const kab in RAW){
-      const slotMap = RAW[kab];
-      for(const lbl in slotMap) labelSet.add(lbl);
-    }
-    labelsSorted = Array.from(labelSet).map(l => ({label:l, dt: parseLabelToDate(l)}))
-      .sort((a,b)=>{
-        if(a.dt && b.dt) return a.dt - b.dt;
-        if(a.dt && !b.dt) return -1;
-        if(!a.dt && b.dt) return 1;
-        return a.label.localeCompare(b.label);
-      })
-      .map(o => o.label);
-
     populateKabupatenSelect();
-    document.getElementById('metaInfo').textContent = `Terbaca ${Object.keys(RAW).length} kabupaten — ${labelsSorted.length} slot waktu unik`;
+    document.getElementById('metaInfo').textContent = `Terbaca ${Object.keys(RAW).length} kabupaten`;
   }
 
   function populateKabupatenSelect(){
@@ -157,51 +126,29 @@
     tbody.innerHTML = '';
     const slotMap = RAW[kab] || {};
     const rows = [];
-    for(const label of labelsSorted){
-      if(slotMap[label]){
-        const v = slotMap[label];
-        rows.push({label, cuaca:v.cuaca ?? '-', suhu:v.suhu ?? '-', hum:v.hum ?? '-'});
-      }
+    for(const label in slotMap){
+      const v = slotMap[label];
+      rows.push({label, cuaca:v.cuaca ?? '-', suhu:v.suhu ?? '-', hum:v.hum ?? '-'});
     }
-    const cuFilter = document.getElementById('filterCuaca').value.trim().toLowerCase();
-    const filtered = rows.filter(r => !cuFilter || (String(r.cuaca).toLowerCase().includes(cuFilter)));
-
-    if(!filtered.length){
-      tbody.innerHTML = '<tr><td colspan="4" class="small muted">Tidak ada data untuk filter saat ini</td></tr>';
-      document.getElementById('slotCount').textContent = '0';
-      drawChart([],[],[],[]);
+    if(!rows.length){
+      tbody.innerHTML = '<tr><td colspan="4" class="small muted">Tidak ada data</td></tr>';
       return;
     }
-    tbody.innerHTML = filtered.map(r => `<tr>
+    const html = rows.map(r => `<tr>
       <td>${r.label}</td>
       <td>${r.cuaca}</td>
       <td class="right">${r.suhu}</td>
       <td class="right">${r.hum}</td>
     </tr>`).join('');
-    document.getElementById('slotCount').textContent = filtered.length;
-
-    const x = [], tmin = [], tmax = [], hmin = [], hmax = [];
-    filtered.forEach(r => {
-      x.push(r.label);
-      const [a,b] = parseRangeString(r.suhu); tmin.push(a); tmax.push(b);
-      const [c,d] = parseRangeString(r.hum); hmin.push(c); hmax.push(d);
-    });
-    drawChart(x, tmin, tmax, hmin, hmax);
+    tbody.innerHTML = html;
+    document.getElementById('slotCount').textContent = rows.length;
   }
 
-  function drawChart(labels, tmin, tmax, hmin, hmax){
-    const ctx = document.getElementById('chart').getContext('2d');
-    if(chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label:'Suhu min (°C)', data:tmin, borderColor:'#1f77b4', backgroundColor:'rgba(31,119,180,0.08)', tension:0.2, spanGaps:true },
-          { label:'Suhu max (°C)', data:tmax, borderColor:'#ff7f0e', backgroundColor:'rgba(255,127,14,0.08)', tension:0.2, spanGaps:true },
-          { label:'Hum min (%)', data:hmin, borderColor:'#2ca02c', backgroundColor:'rgba(44,160,44,0.06)', tension:0.2, spanGaps:true, yAxisID:'y2' },
-          { label:'Hum max (%)', data:hmax, borderColor:'#d62728', backgroundColor:'rgba(214,39,40,0.06)', tension:0.2, spanGaps:true, yAxisID:'y2' }
-        ]
-      },
-      options: {
-        interaction:{mode:'index',inter
+  // event
+  document.getElementById('loadBtn').addEventListener('click', ()=>{
+    const f = document.getElementById('dataFile').value.trim();
+    loadAndPrepare(f);
+  });
+  </script>
+</body>
+</html>
