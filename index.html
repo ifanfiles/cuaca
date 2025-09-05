@@ -79,36 +79,19 @@
   <script>
   // ---------- util ----------
   function parseLabelToDate(label){
-    // label expected like "Thu, 04 Sep 2025 00:00–03:00" or fallback "2025-09-04 00:00–03:00"
-    const m = label.match(/(\d{4})[-\/](\d{2})[-\/](\d{2})\s+(\d{2}):(\d{2})/) ||
-              label.match(/(\d{2})\s([A-Za-z]{3})\s(\d{4})\s(\d{2}):(\d{2})/);
-    if(!m) {
-      // try simple iso start
-      const iso = label.split('–')[0].trim();
-      const d = new Date(iso);
-      if(!isNaN(d)) return d;
-      return null;
-    }
-    // case of dd Mon yyyy hh:mm
-    if(m[2] && isNaN(m[2])) {
-      const dd = m[1], monStr = m[2], yyyy = m[3], hh = m[4], mm = m[5];
-      const monMap = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-      return new Date(+yyyy, monMap[monStr]||0, +dd, +hh, +mm);
-    } else {
-      // iso-like groups
-      const yyyy=m[1], mm=m[2], dd=m[3], hh=m[4], minu=m[5];
-      return new Date(+yyyy, +mm-1, +dd, +hh, +minu);
-    }
+    // ambil bagian sebelum tanda "–"
+    let startStr = label.split("–")[0].trim();
+    // buang teks hari di depan (mis. "Fri, ")
+    startStr = startStr.replace(/^[A-Za-z]+,\s*/,"");
+    const d = new Date(startStr);
+    if(!isNaN(d)) return d;
+    return null;
   }
 
   function parseRangeString(s){
-    // s like "24–30" or "-" or "24 - 30"
     if(!s || typeof s !== 'string') return [null,null];
     const m = s.match(/(-?\d+)\s*[–-]\s*(-?\d+)/);
-    if(m){
-      return [Number(m[1]), Number(m[2])];
-    }
-    // single number?
+    if(m) return [Number(m[1]), Number(m[2])];
     const n = parseFloat(s);
     if(!isNaN(n)) return [n,n];
     return [null,null];
@@ -123,8 +106,8 @@
   }
 
   // ---------- state ----------
-  let RAW = null; // full JSON
-  let labelsSorted = []; // sorted labels (time text) globally
+  let RAW = null;
+  let labelsSorted = [];
   let chart = null;
 
   // ---------- load & render ----------
@@ -138,7 +121,7 @@
       return;
     }
 
-    // --- build global label set and sort by date ---
+    // --- build global label set and sort by datetime ---
     const labelSet = new Set();
     for(const kab in RAW){
       const slotMap = RAW[kab];
@@ -173,7 +156,6 @@
     const tbody = document.getElementById('tbody');
     tbody.innerHTML = '';
     const slotMap = RAW[kab] || {};
-    // ensure we iterate using labelsSorted so columns consistent
     const rows = [];
     for(const label of labelsSorted){
       if(slotMap[label]){
@@ -181,7 +163,6 @@
         rows.push({label, cuaca:v.cuaca ?? '-', suhu:v.suhu ?? '-', hum:v.hum ?? '-'});
       }
     }
-    // apply cuaca filter
     const cuFilter = document.getElementById('filterCuaca').value.trim().toLowerCase();
     const filtered = rows.filter(r => !cuFilter || (String(r.cuaca).toLowerCase().includes(cuFilter)));
 
@@ -191,16 +172,14 @@
       drawChart([],[],[],[]);
       return;
     }
-    const html = filtered.map(r => `<tr>
+    tbody.innerHTML = filtered.map(r => `<tr>
       <td>${r.label}</td>
       <td>${r.cuaca}</td>
       <td class="right">${r.suhu}</td>
       <td class="right">${r.hum}</td>
     </tr>`).join('');
-    tbody.innerHTML = html;
     document.getElementById('slotCount').textContent = filtered.length;
 
-    // prepare data for chart (parse min/max)
     const x = [], tmin = [], tmax = [], hmin = [], hmax = [];
     filtered.forEach(r => {
       x.push(r.label);
@@ -225,54 +204,4 @@
         ]
       },
       options: {
-        interaction:{mode:'index',intersect:false},
-        stacked:false,
-        scales:{
-          y:{type:'linear',position:'left',title:{display:true,text:'Suhu (°C)'}},
-          y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Kelembapan (%)'}}
-        },
-        plugins:{legend:{position:'top'},tooltip:{enabled:true}}
-      }
-    });
-  }
-
-  // CSV export
-  function exportCSVForCurrentKab(){
-    const kab = document.getElementById('kabSelect').value;
-    if(!kab) return alert('Pilih kabupaten dahulu');
-    const slotMap = RAW[kab] || {};
-    const rows = [];
-    rows.push(['kabupaten','label','cuaca','suhu_min','suhu_max','hum_min','hum_max']);
-    for(const label of labelsSorted){
-      const v = slotMap[label];
-      if(!v) continue;
-      const [smin,smax] = parseRangeString(v.suhu);
-      const [hmin,hmax] = parseRangeString(v.hum);
-      rows.push([kab, label, v.cuaca ?? '-', smin ?? '', smax ?? '', hmin ?? '', hmax ?? '']);
-    }
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    downloadText(`${kab.replace(/\s+/g,'_')}_prakiraan.csv`, csv);
-  }
-
-  // events
-  document.getElementById('loadBtn').addEventListener('click', ()=>{
-    const f = document.getElementById('dataFile').value.trim() || 'prakiraan_kabupaten_full3jam.json';
-    loadAndPrepare(f);
-  });
-  document.getElementById('filterCuaca').addEventListener('input', ()=> {
-    const sel = document.getElementById('kabSelect');
-    if(sel.value) renderForKabupaten(sel.value);
-  });
-  document.getElementById('toCsv').addEventListener('click', exportCSVForCurrentKab);
-
-  // auto-load default filename on open
-  window.addEventListener('load', ()=> {
-    // attempt to load default file
-    // if you host on GitHub Pages ensure JSON filename matches
-    // otherwise change the input value
-    const defaultFile = document.getElementById('dataFile').value.trim();
-    loadAndPrepare(defaultFile);
-  });
-  </script>
-</body>
-</html>
+        interaction:{mode:'index',inter
