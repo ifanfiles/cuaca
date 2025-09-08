@@ -1,53 +1,158 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Pivot Prakiraan Cuaca</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-    th { background: #eee; }
-    .kab { text-align: left; font-weight: bold; }
-  </style>
+<meta charset="utf-8" />
+<title>Pivot Prakiraan Cuaca (robust)</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;padding:16px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid #ccc;padding:6px;text-align:center}
+  th{background:#efefef}
+  .kab{font-weight:600;text-align:left}
+  pre.err{background:#fee;border:1px solid #fbb;padding:8px;overflow:auto}
+</style>
 </head>
 <body>
-  <h2>Prakiraan Cuaca Per Kabupaten</h2>
-  <div id="pivot"></div>
+  <h3>Pivot Prakiraan Cuaca — tampil per kabupaten × waktu</h3>
+  <div>
+    JSON file: <input id="jsonFile" value="prakiraan_kabupaten_full3jam.json" style="width:320px"/>
+    <button id="btnLoad">Muat & Tampilkan</button>
+  </div>
+  <div id="status" style="margin-top:10px;color:#444"></div>
+  <div id="container" style="margin-top:12px"></div>
 
-  <script>
-    async function loadData() {
-      const res = await fetch("prakiraan_kabupaten_full3jam.json"); // ganti path sesuai lokasi file
-      const data = await res.json();
+<script>
+// ---------- util ----------
+function escapeHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
 
-      // --- Ambil semua waktu unik, urutkan ---
-      let allTimes = new Set();
-      for (const kab in data) {
-        Object.keys(data[kab]).forEach(t => allTimes.add(t));
-      }
-      const times = Array.from(allTimes).sort((a,b)=> {
-        return new Date(a) - new Date(b);
-      });
+// parse label like "08 Sep 2025 08:00" OR "08 Sep 08:00"
+// returns Date or null
+function parseLabelDate(label){
+  if(!label) return null;
+  // take part before an en-dash / hyphen if present
+  let part = label.split('–')[0].trim();
+  // remove weekday prefix like "Fri," if present
+  part = part.replace(/^[A-Za-z]+,\s*/,"");
 
-      // --- Buat tabel ---
-      let html = "<table><tr><th>Kabupaten</th>";
-      times.forEach(t => { html += `<th>${t}</th>`; });
-      html += "</tr>";
+  // try pattern: DD Mon YYYY HH:MM  OR DD Mon HH:MM
+  const m = part.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s*(\d{4})?\s+(\d{1,2}):(\d{2})$/);
+  const monthMap = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  if(m){
+    const day = parseInt(m[1],10);
+    let monStr = m[2].toLowerCase();
+    // accept full month names too (e.g. September) -> take first 3 letters
+    if(monStr.length>3) monStr = monStr.slice(0,3);
+    const year = m[3] ? parseInt(m[3],10) : (new Date()).getFullYear();
+    const hh = parseInt(m[4],10), mm = parseInt(m[5],10);
+    const mon = monthMap[monStr] ?? 0;
+    return new Date(year, mon, day, hh, mm);
+  }
 
-      for (const kab in data) {
-        html += `<tr><td class="kab">${kab}</td>`;
-        times.forEach(t => {
-          let val = data[kab][t] ? data[kab][t].cuaca : "-";
-          html += `<td>${val}</td>`;
-        });
-        html += "</tr>`;
-      }
+  // fallback: try Date.parse on the trimmed string
+  const d = new Date(part);
+  return isNaN(d) ? null : d;
+}
 
-      html += "</table>";
-      document.getElementById("pivot").innerHTML = html;
+// warna sederhana untuk kategori cuaca (opsional)
+function colorForWeather(desc){
+  if(!desc) return '';
+  const s = desc.toLowerCase();
+  if(s.includes('ringan')) return '#b7f0b7'; // hijau muda
+  if(s.includes('sedang')) return '#fff59d'; // kuning
+  if(s.includes('lebat') && !s.includes('sangat')) return '#ffd19a'; // oranye
+  if(s.includes('sangat lebat')) return '#ff9a9a'; // merah muda
+  if(s.includes('ekstrem')) return '#b39ddb'; // ungu
+  if(s.includes('cerah')) return '#d9f1ff'; // biru muda
+  if(s.includes('berawan')) return '#ececec'; // abu
+  return '';
+}
+
+// ---------- main ----------
+document.getElementById('btnLoad').addEventListener('click', loadAndRender);
+
+async function loadAndRender(){
+  const filename = document.getElementById('jsonFile').value.trim() || 'prakiraan_kabupaten_full3jam.json';
+  const status = document.getElementById('status');
+  const container = document.getElementById('container');
+  container.innerHTML = '';
+  status.textContent = '🔄 Mengambil ' + filename + ' ... (periksa console jika gagal)';
+  try{
+    const res = await fetch(filename, {cache:'no-store'});
+    const ctype = res.headers.get('content-type') || '';
+    const text = await res.text();
+    console.log('fetch response content-type:', ctype);
+    // quick sanity: if response looks like HTML it's likely a 404/403 page
+    if(ctype.indexOf('application/json') === -1){
+      // but don't assume — try parse anyway after cleaning BOM; if fails, show preview
     }
 
-    loadData();
-  </script>
+    // hapus BOM bila ada
+    const cleaned = text.replace(/^\uFEFF/, '');
+    let data;
+    try{
+      data = JSON.parse(cleaned);
+    }catch(parseErr){
+      console.error('JSON parse error:', parseErr);
+      status.innerHTML = `<span style="color:red">❌ Gagal parse JSON: ${escapeHtml(parseErr.message)}</span>`;
+      // tampilkan preview respons (potongan)
+      container.innerHTML = `<div><b>Preview respons (potongan):</b></div><pre class="err">${escapeHtml(text.slice(0,2000))}</pre>`;
+      return;
+    }
+
+    // success
+    status.innerHTML = `✅ JSON dimuat — jumlah kabupaten: ${Object.keys(data).length}`;
+
+    // build set of all times
+    const timesSet = new Set();
+    for(const kab in data){
+      const slots = data[kab];
+      if(!slots || typeof slots !== 'object') continue;
+      Object.keys(slots).forEach(k => timesSet.add(k));
+    }
+    // convert to array and sort by parsed datetime (fallback to lexical)
+    const timesArr = Array.from(timesSet);
+    timesArr.sort((a,b)=>{
+      const da = parseLabelDate(a), db = parseLabelDate(b);
+      if(da && db) return da - db;
+      if(da && !db) return -1;
+      if(!da && db) return 1;
+      return a.localeCompare(b);
+    });
+
+    // build table header
+    let html = '<div style="overflow:auto"><table><thead><tr><th>Kabupaten</th>';
+    for(const t of timesArr) html += `<th>${escapeHtml(t)}</th>`;
+    html += '</tr></thead><tbody>';
+
+    // rows
+    const kabNames = Object.keys(data).sort((a,b) => a.localeCompare(b));
+    for(const kab of kabNames){
+      html += `<tr><td class="kab">${escapeHtml(kab)}</td>`;
+      for(const t of timesArr){
+        const val = data[kab] && data[kab][t] ? data[kab][t].cuaca : '-';
+        const color = colorForWeather(val);
+        const style = color ? ` style="background:${color}"` : '';
+        html += `<td${style}>${escapeHtml(val)}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+
+  }catch(err){
+    console.error('Fetch/parsing error:', err);
+    status.innerHTML = `<span style="color:red">❌ Gagal fetch atau proses: ${escapeHtml(err.message)}</span>`;
+    container.innerHTML = `<pre class="err">Check console for details.\n${escapeHtml(String(err))}</pre>`;
+  }
+}
+
+// auto-load on open
+window.addEventListener('load', ()=> {
+  // try auto-load (comment this out if you prefer manual)
+  // loadAndRender();
+});
+</script>
 </body>
 </html>
