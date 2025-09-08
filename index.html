@@ -1,154 +1,53 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <title>Viewer Prakiraan (3-jam) — Per Kabupaten</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Pivot Prakiraan Cuaca</title>
   <style>
-    body{font-family:system-ui,Arial,Segoe UI,Roboto; margin:16px; background:#f6f8fb; color:#111}
-    h1{margin:0 0 8px;text-align:center}
-    .top {display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
-    select,input,button{padding:8px 10px;border-radius:8px;border:1px solid #d0d7e0}
-    .layout {display:grid; grid-template-columns: 1fr 480px; gap:16px; align-items:start}
-    .card {background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 18px rgba(18,38,63,0.06)}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}
-    th{background:#f3f6fb;position:sticky;top:0}
-    .small{font-size:12px;color:#666}
-    .right{text-align:right}
-    .muted{color:#666;font-size:13px}
-    .controls-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    canvas{max-width:100%}
-    .download {margin-left:auto}
-    @media(max-width:940px){ .layout{grid-template-columns:1fr} }
-
-    /* --- Style tombol --- */
-    button {
-      background:#2c7be5;
-      color:#fff;
-      border:none;
-      border-radius:6px;
-      cursor:pointer;
-      font-weight:600;
-      box-shadow:0 2px 4px rgba(0,0,0,0.1);
-      transition:background 0.2s;
-    }
-    button:hover { background:#1a5fb4; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background: #eee; }
+    .kab { text-align: left; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>Prakiraan Cuaca Per Kabupaten (slot 3-jam)</h1>
-
-  <div class="top">
-    <div class="controls-row card">
-      <label>File JSON:
-        <input id="dataFile" type="text" value="prakiraan_kabupaten_full3jam.json" style="width:260px" />
-      </label>
-      <button id="loadBtn">Muat Data</button>
-
-      <label>Kabupaten:
-        <select id="kabSelect" style="min-width:260px"></select>
-      </label>
-
-      <label>Filter cuaca:
-        <input id="filterCuaca" placeholder="kata kunci cuaca (mis. Hujan)" />
-      </label>
-
-      <button id="toCsv" class="download">Download CSV</button>
-    </div>
-  </div>
-
-  <div class="layout">
-    <div class="card">
-      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="muted" id="metaInfo">Belum memuat data</div>
-        <div class="small">Jumlah slot: <span id="slotCount">0</span></div>
-      </div>
-
-      <div style="overflow:auto;max-height:560px">
-        <table id="table">
-          <thead>
-            <tr><th>Waktu (start–end)</th><th>Cuaca</th><th class="right">Suhu (°C)</th><th class="right">Kelembapan (%)</th></tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="4" class="small">Belum ada data — klik "Muat Data"</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div style="margin-bottom:8px">
-        <div class="small">Grafik suhu & kelembapan (min/max)</div>
-      </div>
-      <canvas id="chart" height="300"></canvas>
-      <div style="margin-top:10px" class="small muted">Catatan: jika rentang suhu/kelembapan kosong, titik dihilangkan.</div>
-    </div>
-  </div>
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <h2>Prakiraan Cuaca Per Kabupaten</h2>
+  <div id="pivot"></div>
 
   <script>
-  let RAW = null;
-  let chart = null;
+    async function loadData() {
+      const res = await fetch("prakiraan_kabupaten_full3jam.json"); // ganti path sesuai lokasi file
+      const data = await res.json();
 
-  async function loadAndPrepare(fileName){
-    try {
-      console.log("📥 Fetching:", fileName);
-      const res = await fetch(fileName, {cache:'no-store'});
-      if(!res.ok) throw new Error('HTTP '+res.status+' — '+res.statusText);
-      RAW = await res.json();
-      console.log("✅ Data berhasil dimuat", RAW);
-    } catch(err) {
-      alert('❌ Gagal load JSON: '+err.message);
-      console.error("Gagal load JSON:", err);
-      return;
+      // --- Ambil semua waktu unik, urutkan ---
+      let allTimes = new Set();
+      for (const kab in data) {
+        Object.keys(data[kab]).forEach(t => allTimes.add(t));
+      }
+      const times = Array.from(allTimes).sort((a,b)=> {
+        return new Date(a) - new Date(b);
+      });
+
+      // --- Buat tabel ---
+      let html = "<table><tr><th>Kabupaten</th>";
+      times.forEach(t => { html += `<th>${t}</th>`; });
+      html += "</tr>";
+
+      for (const kab in data) {
+        html += `<tr><td class="kab">${kab}</td>`;
+        times.forEach(t => {
+          let val = data[kab][t] ? data[kab][t].cuaca : "-";
+          html += `<td>${val}</td>`;
+        });
+        html += "</tr>`;
+      }
+
+      html += "</table>";
+      document.getElementById("pivot").innerHTML = html;
     }
-    populateKabupatenSelect();
-    document.getElementById('metaInfo').textContent = `Terbaca ${Object.keys(RAW).length} kabupaten`;
-  }
 
-  function populateKabupatenSelect(){
-    const sel = document.getElementById('kabSelect');
-    sel.innerHTML = '';
-    const names = Object.keys(RAW).sort((a,b)=>a.localeCompare(b));
-    names.forEach(n => {
-      const opt = document.createElement('option'); opt.value = n; opt.textContent = n;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener('change', ()=> renderForKabupaten(sel.value));
-    if(names.length) renderForKabupaten(names[0]);
-  }
-
-  function renderForKabupaten(kab){
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = '';
-    const slotMap = RAW[kab] || {};
-    const rows = [];
-    for(const label in slotMap){
-      const v = slotMap[label];
-      rows.push({label, cuaca:v.cuaca ?? '-', suhu:v.suhu ?? '-', hum:v.hum ?? '-'});
-    }
-    if(!rows.length){
-      tbody.innerHTML = '<tr><td colspan="4" class="small muted">Tidak ada data</td></tr>';
-      return;
-    }
-    const html = rows.map(r => `<tr>
-      <td>${r.label}</td>
-      <td>${r.cuaca}</td>
-      <td class="right">${r.suhu}</td>
-      <td class="right">${r.hum}</td>
-    </tr>`).join('');
-    tbody.innerHTML = html;
-    document.getElementById('slotCount').textContent = rows.length;
-  }
-
-  // event
-  document.getElementById('loadBtn').addEventListener('click', ()=>{
-    const f = document.getElementById('dataFile').value.trim();
-    loadAndPrepare(f);
-  });
+    loadData();
   </script>
 </body>
 </html>
