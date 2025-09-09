@@ -77,8 +77,16 @@ function pilihCuaca(arr){
 
 // parsing tanggal dari label
 function extractDate(label){
-  const m = label.match(/(\d{2}) (\w{3}) (\d{4})/); // ex: 05 Sep 2025
-  return m ? m[0] : label;
+  // format label contoh: "09 Sep 12:00" atau "09 Sep 2025 12:00"
+  const parts = label.split(" ");
+  // ambil 2 atau 3 bagian pertama (tgl + bulan [+tahun])
+  if(parts.length >= 3 && !parts[2].includes(":")){
+    // sudah ada tahun
+    return parts[0]+" "+parts[1]+" "+parts[2];
+  } else {
+    // tanpa tahun → ambil tgl + bulan saja
+    return parts[0]+" "+parts[1];
+  }
 }
 
 async function loadAndPrepare(fileName){
